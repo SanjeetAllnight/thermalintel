@@ -6,6 +6,12 @@ set -e
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# ── Kill any stale processes on required ports ────────────────────────────────
+echo "Cleaning up stale processes on :8000 and :3000..."
+fuser -k 8000/tcp 2>/dev/null || true
+fuser -k 3000/tcp 2>/dev/null || true
+sleep 0.5
+
 # ── Backend ──────────────────────────────────────────────────────────────────
 if [ ! -d ".venv" ]; then
   echo "Creating Python virtualenv..."

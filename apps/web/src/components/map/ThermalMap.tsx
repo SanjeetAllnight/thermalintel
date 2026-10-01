@@ -33,10 +33,19 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
   const [mapReady, setMapReady] = useState<boolean>(false);
 
   // Basemap Tile URLs
+  // CARTO requires an API key appended as ?key=<NEXT_PUBLIC_CARTO_API_KEY>.
+  // If the env var is absent the keyless URL is used (map renders with watermark rather than crashing).
+  const cartoApiKey = process.env.NEXT_PUBLIC_CARTO_API_KEY ?? '';
+  const cartoBaseUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const cartoDarkUrl = cartoApiKey
+    ? `${cartoBaseUrl}?key=${cartoApiKey}`
+    : cartoBaseUrl;
+
   const basemapUrls: Record<BasemapType, { url: string; attribution: string }> = {
     dark: {
-      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap',
+      url: cartoDarkUrl,
+      attribution:
+        '&copy; <a href="https://carto.com/" target="_blank" rel="noopener">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
     },
     satellite: {
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
