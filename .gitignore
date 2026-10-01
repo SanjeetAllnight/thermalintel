@@ -29,7 +29,7 @@ env/
 ENV/
 
 # Next.js & Node
-apps/web/node_modules/
+apps/web/node_modules
 apps/web/.next/
 apps/web/out/
 node_modules/
