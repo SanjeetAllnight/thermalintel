@@ -18,7 +18,7 @@ Integration wiring:
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -37,6 +37,11 @@ from services.api.schemas import (
     RiskLevel,
     SourceType,
 )
+from services.api.alerts.health import AlertHealthMetrics
+from services.api.schemas.v2.alert import AlertV2
+from services.api.schemas.v2.incident import Incident
+from services.api.schemas.v2.event import IncidentEvent
+from services.api.schemas.v2.observation import Observation
 from services.api.database import get_connection, seed_if_empty
 
 # ── Phase 1: Data Engine ──────────────────────────────────────────────────────
@@ -170,6 +175,24 @@ def get_summary():
     return summary_service.get_summary()
 
 
+# ── Alerts Routes (health must precede parameterized /{id}) ──────────────────
+
+@router.get("/alerts/health", response_model=AlertHealthMetrics)
+def get_alerts_health(
+    window_seconds: int = Query(86400, ge=60, description="Evaluation window in seconds"),
+    as_of_utc: Optional[str] = Query(None, description="Snapshot reference timestamp in UTC ISO"),
+    chatter_threshold: int = Query(3, ge=1, description="Threshold for chattering incident detection"),
+):
+    """Retrieve operational alert health metrics and noise suppression telemetry."""
+    seed_if_empty()
+    alert_service = _make_alert_service()
+    return alert_service.get_alert_health(
+        window_seconds=window_seconds,
+        as_of_utc=as_of_utc,
+        chatter_threshold=chatter_threshold,
+    )
+
+
 @router.get("/alerts", response_model=AlertsResponse)
 def get_alerts(
     severity: Optional[AlertSeverity] = Query(None, description="Filter by alert severity"),
@@ -180,6 +203,98 @@ def get_alerts(
     alert_service = _make_alert_service()
     return alert_service.get_alerts(severity=severity, unread_only=unread_only)
 
+
+@router.get("/alerts/{id}")
+def get_alert_by_id(id: str):
+    """Retrieve an alert by its ID (checks canonical alerts_v2 first, then legacy alerts)."""
+    seed_if_empty()
+    alert_service = _make_alert_service()
+    v2_alert = alert_service.get_alert_v2_by_id(id)
+    if v2_alert:
+        return v2_alert
+    alerts_resp = alert_service.get_alerts()
+    for item in alerts_resp.items:
+        if item.id == id:
+            return item
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Alert with ID '{id}' not found",
+    )
+
+
+@router.post("/alerts/{id}/acknowledge")
+def acknowledge_alert(id: str):
+    """Mark an alert as acknowledged persistently in SQLite."""
+    seed_if_empty()
+    alert_service = _make_alert_service()
+    updated = alert_service.acknowledge_alert_v2(id)
+    if not updated:
+        updated = alert_service.acknowledge_alert(id)
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Alert with ID '{id}' not found or already acknowledged",
+        )
+    return {"status": "ok", "alert_id": id, "acknowledged": True}
+
+
+# ── Canonical Persistent Incidents Routes ────────────────────────────────────
+
+@router.get("/incidents", response_model=List[Incident])
+def get_incidents(
+    status: Optional[str] = Query(None, description="Comma-separated incident status filter"),
+    min_risk: Optional[float] = Query(None, ge=0.0, le=100.0, description="Minimum risk score"),
+):
+    """Retrieve persistent incidents matching lifecycle status and risk criteria."""
+    seed_if_empty()
+    incident_service = _make_incident_service()
+    status_list = [s.strip() for s in status.split(",")] if status else None
+    return incident_service.get_active_incidents(status=status_list, min_risk=min_risk)
+
+
+@router.get("/incidents/{id}", response_model=Incident)
+def get_incident_by_id(id: str):
+    """Retrieve persistent incident by permanent identifier."""
+    seed_if_empty()
+    incident_service = _make_incident_service()
+    inc = incident_service.get_incident_by_id(id)
+    if not inc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident with ID '{id}' not found",
+        )
+    return inc
+
+
+@router.get("/incidents/{id}/timeline", response_model=List[IncidentEvent])
+def get_incident_timeline(id: str):
+    """Retrieve chronological immutable lifecycle events for an incident."""
+    seed_if_empty()
+    incident_service = _make_incident_service()
+    inc = incident_service.get_incident_by_id(id)
+    if not inc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident with ID '{id}' not found",
+        )
+    return incident_service.get_incident_timeline(id)
+
+
+@router.get("/incidents/{id}/observations", response_model=List[Observation])
+def get_incident_observations(id: str):
+    """Retrieve satellite observations correlated to an incident."""
+    seed_if_empty()
+    incident_service = _make_incident_service()
+    inc = incident_service.get_incident_by_id(id)
+    if not inc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident with ID '{id}' not found",
+        )
+    return incident_service.get_incident_observations(id)
+
+
+# ── Analytics & Refresh Routes ───────────────────────────────────────────────
 
 @router.get("/sources", response_model=SourcesResponse)
 def get_sources():
@@ -203,3 +318,4 @@ def trigger_refresh(req: Optional[RefreshRequest] = None):
     data_service = _make_data_service()
     force = req.force_sample if req else False
     return data_service.sync(force_sample=force)
+
