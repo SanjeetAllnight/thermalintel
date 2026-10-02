@@ -1,12 +1,42 @@
-"""Configuration, constants, and thresholds for the Thermal Intelligence Engine."""
+"""Configuration, constants, operational thresholds, and methodology definitions for ThermalIntel Intelligence.
+
+Documents:
+- Clear separation between provider detection confidence, rule-based classification support,
+  statistical anomaly deviation, and composite operational risk score.
+- Methodology identifiers: RULE_BASED, BASELINE_STATISTICAL, ISOLATION_FOREST, WEIGHTED_RISK.
+- Explicit operational risk weights and threshold boundaries.
+"""
 
 from enum import Enum
-from typing import Dict
+from typing import Dict, Final
+
 from services.api.schemas.common import SourceType, RiskLevel
+from services.intelligence.thresholds import (
+    RISK_TIER_CRITICAL,
+    RISK_TIER_HIGH,
+    RISK_TIER_MEDIUM,
+    RISK_TIER_LOW,
+    SETTLEMENT_CRITICAL_M,
+    SETTLEMENT_HIGH_M,
+    SETTLEMENT_MEDIUM_M,
+    SETTLEMENT_REMOTE_M,
+    INFRA_CRITICAL_M,
+    INFRA_HIGH_M,
+    INFRA_MEDIUM_M,
+    INDUSTRIAL_IMMEDIATE_M,
+    INDUSTRIAL_VICINITY_M,
+    DEFAULT_BASELINE_FRP_MEAN,
+    DEFAULT_BASELINE_FRP_STD,
+    ANOMALY_SIGMA_THRESHOLD,
+    RECURRENT_FLARE_SUPPRESSION_COUNT,
+    ISOLATION_FOREST_ESTIMATORS,
+    ISOLATION_FOREST_CONTAMINATION,
+    RANDOM_STATE_PINNED,
+)
 
 
 class ThermalSourceClass(str, Enum):
-    """Core intelligence source classes."""
+    """Core intelligence source classes for evidence accumulation."""
     VEGETATION_FIRE = "VEGETATION_FIRE"
     POTENTIAL_INDUSTRIAL_FIRE = "POTENTIAL_INDUSTRIAL_FIRE"
     CONTROLLED_HEAT_SOURCE = "CONTROLLED_HEAT_SOURCE"
@@ -14,7 +44,7 @@ class ThermalSourceClass(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
-# Bidirectional mapping between intelligence classes and frozen SourceType
+# Bidirectional mapping between internal intelligence classes and frozen SourceType
 INTELLIGENCE_CLASS_TO_SOURCE_TYPE: Dict[ThermalSourceClass, SourceType] = {
     ThermalSourceClass.VEGETATION_FIRE: SourceType.WILDFIRE,
     ThermalSourceClass.POTENTIAL_INDUSTRIAL_FIRE: SourceType.INDUSTRIAL,
@@ -34,15 +64,32 @@ SOURCE_TYPE_TO_INTELLIGENCE_CLASS: Dict[SourceType, ThermalSourceClass] = {
 }
 
 
-# Risk Thresholds
-# 0 - 24: LOW
-# 25 - 49: MEDIUM
-# 50 - 74: HIGH
-# 75 - 100: CRITICAL
-RISK_THRESHOLD_CRITICAL: float = 75.0
-RISK_THRESHOLD_HIGH: float = 50.0
-RISK_THRESHOLD_MEDIUM: float = 25.0
-RISK_THRESHOLD_LOW: float = 0.0
+# ==============================================================================
+# Methodology Identifiers & Algorithm Versioning
+# ==============================================================================
+# The system does NOT pretend to have a supervised ML classifier.
+# Methodology is strictly rule-based evidence accumulation, statistical baseline,
+# and multi-factor weighted risk heuristic.
+METHODOLOGY_RULE_BASED: Final[str] = "RULE_BASED"
+METHODOLOGY_BASELINE_STATISTICAL: Final[str] = "BASELINE_STATISTICAL"
+METHODOLOGY_ISOLATION_FOREST: Final[str] = "ISOLATION_FOREST"
+METHODOLOGY_WEIGHTED_RISK: Final[str] = "WEIGHTED_RISK"
+
+METHODOLOGY_V2_COMPOSITE: Final[str] = "RuleBasedEvidence+BaselineStatistical+WeightedRisk"
+ALGORITHM_VERSION: Final[str] = "v2.0.0-explainable-rules"
+
+
+# ==============================================================================
+# Risk Thresholds & Operational Boundaries
+# ==============================================================================
+# 0.0 - 24.9: LOW (Baseline operational conditions; routine monitoring)
+# 25.0 - 49.9: MEDIUM (Noticeable heat or dry conditions; elevated advisory)
+# 50.0 - 74.9: HIGH (Strong thermal activity with community/asset exposure; suppression readiness)
+# 75.0 - 100.0: CRITICAL (Severe threat to human life or high-value infrastructure; immediate response)
+RISK_THRESHOLD_CRITICAL: Final[float] = RISK_TIER_CRITICAL
+RISK_THRESHOLD_HIGH: Final[float] = RISK_TIER_HIGH
+RISK_THRESHOLD_MEDIUM: Final[float] = RISK_TIER_MEDIUM
+RISK_THRESHOLD_LOW: Final[float] = RISK_TIER_LOW
 
 
 def score_to_risk_level(score: float) -> RiskLevel:
@@ -58,35 +105,38 @@ def score_to_risk_level(score: float) -> RiskLevel:
         return RiskLevel.LOW
 
 
+# ==============================================================================
 # Composite Risk Component Weights
-DEFAULT_WEIGHT_FRP: float = 0.35
-DEFAULT_WEIGHT_WEATHER: float = 0.25
-DEFAULT_WEIGHT_PROXIMITY: float = 0.20
-DEFAULT_WEIGHT_ANOMALY: float = 0.10
-DEFAULT_WEIGHT_HISTORY: float = 0.10
+# ==============================================================================
+# Justification:
+# - FRP (0.35): Direct physical measurement of combustion rate and heat release (MW).
+# - Weather (0.25): Atmospheric spread accelerators (wind speed, low relative humidity, ambient heat).
+# - Proximity (0.20): Spatial vulnerability of human settlements and critical infrastructure.
+# - Anomaly (0.10): Relative surge against local/regional baseline.
+# - History (0.10): Temporal permanence/recurrence profile (stationary flare vs uncontained burn).
+DEFAULT_WEIGHT_FRP: Final[float] = 0.35
+DEFAULT_WEIGHT_WEATHER: Final[float] = 0.25
+DEFAULT_WEIGHT_PROXIMITY: Final[float] = 0.20
+DEFAULT_WEIGHT_ANOMALY: Final[float] = 0.10
+DEFAULT_WEIGHT_HISTORY: Final[float] = 0.10
 
-# Proximity Thresholds (in meters)
-SETTLEMENT_DISTANCE_CRITICAL_M: float = 1500.0
-SETTLEMENT_DISTANCE_HIGH_M: float = 3500.0
-SETTLEMENT_DISTANCE_MEDIUM_M: float = 7500.0
+# Proximity Thresholds (in meters) - backward compatibility aliases
+SETTLEMENT_DISTANCE_CRITICAL_M: Final[float] = SETTLEMENT_CRITICAL_M
+SETTLEMENT_DISTANCE_HIGH_M: Final[float] = SETTLEMENT_HIGH_M
+SETTLEMENT_DISTANCE_MEDIUM_M: Final[float] = SETTLEMENT_MEDIUM_M
 
-INFRA_DISTANCE_CRITICAL_M: float = 500.0
-INFRA_DISTANCE_HIGH_M: float = 2000.0
-INFRA_DISTANCE_MEDIUM_M: float = 5000.0
+INFRA_DISTANCE_CRITICAL_M: Final[float] = INFRA_CRITICAL_M
+INFRA_DISTANCE_HIGH_M: Final[float] = INFRA_HIGH_M
+INFRA_DISTANCE_MEDIUM_M: Final[float] = INFRA_MEDIUM_M
 
-INDUSTRIAL_PROXIMITY_IMMEDIATE_M: float = 800.0
-INDUSTRIAL_PROXIMITY_VICINITY_M: float = 3000.0
+INDUSTRIAL_PROXIMITY_IMMEDIATE_M: Final[float] = INDUSTRIAL_IMMEDIATE_M
+INDUSTRIAL_PROXIMITY_VICINITY_M: Final[float] = INDUSTRIAL_VICINITY_M
 
 # Anomaly Detection Defaults
-DEFAULT_BASELINE_FRP_MEAN: float = 25.0
-DEFAULT_BASELINE_FRP_STD: float = 20.0
-ANOMALY_SIGMA_THRESHOLD: float = 2.0
-ANOMALY_HISTORICAL_SUPPRESSION_COUNT: int = 15
-ISOLATION_FOREST_ESTIMATORS: int = 50
-ISOLATION_FOREST_CONTAMINATION: float = 0.10
-RANDOM_STATE: int = 42
+ANOMALY_HISTORICAL_SUPPRESSION_COUNT: Final[int] = RECURRENT_FLARE_SUPPRESSION_COUNT
+RANDOM_STATE: Final[int] = RANDOM_STATE_PINNED
 
-# Confidence Defaults
-MIN_CONFIDENCE: float = 0.20
-MAX_CONFIDENCE: float = 0.99
-DEFAULT_UNKNOWN_CONFIDENCE: float = 0.40
+# Confidence Bounds
+MIN_CONFIDENCE: Final[float] = 0.20
+MAX_CONFIDENCE: Final[float] = 0.99
+DEFAULT_UNKNOWN_CONFIDENCE: Final[float] = 0.40
