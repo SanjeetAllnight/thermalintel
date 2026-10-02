@@ -1,11 +1,13 @@
-"""Alert deduplication and deterministic identity engine for ThermalIntel Phase 4.
+"""Alert deduplication and deterministic identity engine for ThermalIntel Phase 4 & V2.
 
-Prevents alert flooding by enforcing deterministic alert IDs and suppressing
-duplicate notifications for ongoing identical conditions.
+Prevents alert flooding by enforcing deterministic alert IDs, transition-based dedupe keys,
+and suppressing duplicate notifications for ongoing identical conditions.
 """
 
 from typing import List, Dict, Set, Optional
 from services.api.schemas.alert import Alert
+from services.api.schemas.v2.alert import AlertV2
+from services.api.schemas.v2.common import AlertState, AlertSeverity
 
 
 class AlertDeduplicator:
@@ -33,8 +35,20 @@ class AlertDeduplicator:
 
         return alert_id
 
+    @staticmethod
+    def generate_transition_dedupe_key(
+        incident_id: str, rule_id: str, transition_context: str
+    ) -> str:
+        """Generate a canonical, deterministic dedupe key for an incident transition.
+        
+        Example:
+            generate_transition_dedupe_key("INC-20261001-0001", "RULE_INCIDENT_ESCALATED", "ESCALATED:CRITICAL")
+            -> "INC-20261001-0001:RULE_INCIDENT_ESCALATED:ESCALATED:CRITICAL"
+        """
+        return f"{incident_id}:{rule_id}:{transition_context}"
+
     def deduplicate(self, alerts: List[Alert]) -> List[Alert]:
-        """Deduplicate a collection of alerts while preserving acknowledgment status and priority.
+        """Deduplicate a collection of V1 alerts while preserving acknowledgment status and priority.
         
         If multiple alerts target the same hotspot and severity, the alert with
         higher risk score or acknowledged state is preserved.
@@ -54,7 +68,6 @@ class AlertDeduplicator:
                 existing = seen_keys[key]
                 # If existing is acknowledged and new is not, preserve acknowledgment
                 if existing.is_acknowledged and not alert.is_acknowledged:
-                    # Update metrics if new has higher risk
                     if alert.risk_score > existing.risk_score:
                         updated_alert = alert.model_copy(update={"is_acknowledged": True})
                         seen_keys[key] = updated_alert
@@ -64,3 +77,30 @@ class AlertDeduplicator:
                     seen_keys[key] = alert
 
         return list(seen_keys.values())
+
+    def deduplicate_v2(self, alerts: List[AlertV2]) -> List[AlertV2]:
+        """Deduplicate a collection of AlertV2 instances using dedupe_key.
+        
+        Preserves acknowledged state and suppresses duplicate alerts.
+        """
+        if not alerts:
+            return []
+
+        seen: Dict[str, AlertV2] = {}
+        for a in alerts:
+            key = a.dedupe_key
+            if key not in seen:
+                seen[key] = a
+            else:
+                existing = seen[key]
+                # Preserve ACKNOWLEDGED state if already acknowledged
+                if existing.state == AlertState.ACKNOWLEDGED and a.state != AlertState.ACKNOWLEDGED:
+                    pass  # keep existing acknowledged alert
+                elif existing.state != AlertState.ACKNOWLEDGED and a.state == AlertState.ACKNOWLEDGED:
+                    seen[key] = a
+                else:
+                    # Keep the one with newer creation timestamp
+                    if a.created_at_utc > existing.created_at_utc:
+                        seen[key] = a
+
+        return list(seen.values())
