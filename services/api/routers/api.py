@@ -1,11 +1,18 @@
-"""ThermalIntel Frozen API Router — Fully Integrated.
+"""ThermalIntel Frozen API Router — Modernized and Hardened.
 
 CONTRACT ENDPOINTS:
 - GET /api/health
 - GET /api/hotspots
 - GET /api/hotspots/{id}
 - GET /api/summary
+- GET /api/alerts/health
 - GET /api/alerts
+- GET /api/alerts/{id}
+- POST /api/alerts/{id}/acknowledge
+- GET /api/incidents
+- GET /api/incidents/{id}
+- GET /api/incidents/{id}/timeline
+- GET /api/incidents/{id}/observations
 - GET /api/sources
 - POST /api/refresh
 
@@ -20,9 +27,16 @@ Integration wiring:
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from services.api.security import verify_admin_key
+from services.api.security import verify_admin_key, verify_refresh_rate_limit
+from services.api.scheduler.orchestrator import get_refresh_orchestrator
+from services.api.routers.errors import NotFoundError, APIErrorResponse
+from services.api.routers.pagination import (
+    validate_pagination_params,
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
+)
 from services.api.schemas import (
     HealthResponse,
     HotspotsResponse,
@@ -114,7 +128,7 @@ def get_health():
 
     return HealthResponse(
         status="ok",
-        version="1.0.0",
+        version="2.0.0",
         data_mode=mode,
         timestamp=datetime.now(timezone.utc).isoformat(),
         services={
@@ -129,6 +143,7 @@ def get_health():
 
 @router.get("/hotspots", response_model=HotspotsResponse)
 def get_hotspots(
+    response: Response,
     risk_level: Optional[RiskLevel] = Query(None, description="Filter by risk category"),
     source_type: Optional[SourceType] = Query(None, description="Filter by thermal source type"),
     min_frp: Optional[float] = Query(None, ge=0.0, description="Minimum Fire Radiative Power (MW)"),
@@ -136,21 +151,29 @@ def get_hotspots(
     is_anomaly: Optional[bool] = Query(None, description="Filter by anomaly status"),
     cluster_id: Optional[str] = Query(None, description="Filter by specific cluster ID"),
     page: int = Query(1, ge=1, description="Page index"),
-    page_size: int = Query(50, ge=1, le=500, description="Items per page"),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Items per page"),
+    limit: Optional[int] = Query(None, ge=1, le=MAX_PAGE_SIZE, description="Items per page (alias for page_size)"),
 ):
-    """Retrieve filtered and paginated thermal anomaly hotspots."""
+    """Retrieve filtered and paginated thermal anomaly hotspots with deterministic ordering."""
     seed_if_empty()
+    valid_page, valid_limit = validate_pagination_params(page=page, page_size=page_size, limit=limit)
+
     data_service = _make_data_service()
-    return data_service.get_hotspots(
+    res = data_service.get_hotspots(
         risk_level=risk_level,
         source_type=source_type,
         min_frp=min_frp,
         min_confidence=min_confidence,
         is_anomaly=is_anomaly,
         cluster_id=cluster_id,
-        page=page,
-        page_size=page_size,
+        page=valid_page,
+        page_size=valid_limit,
     )
+
+    response.headers["X-Total-Count"] = str(res.total)
+    response.headers["X-Page"] = str(valid_page)
+    response.headers["X-Page-Size"] = str(valid_limit)
+    return res
 
 
 @router.get("/hotspots/{id}", response_model=IncidentDetail)
@@ -160,9 +183,9 @@ def get_hotspot_detail(id: str):
     incident_service = _make_incident_service()
     detail = incident_service.get_incident_detail_by_id(id)
     if not detail:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Hotspot with ID '{id}' not found",
+        raise NotFoundError(
+            message=f"Hotspot with ID '{id}' not found",
+            details={"hotspot_id": id},
         )
     return detail
 
@@ -195,13 +218,35 @@ def get_alerts_health(
 
 @router.get("/alerts", response_model=AlertsResponse)
 def get_alerts(
+    response: Response,
     severity: Optional[AlertSeverity] = Query(None, description="Filter by alert severity"),
     unread_only: bool = Query(False, description="Filter unacknowledged alerts only"),
+    page: int = Query(1, ge=1, description="1-based page index"),
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Items per page"),
 ):
-    """Retrieve operational risk alerts and urgent notifications."""
+    """Retrieve operational risk alerts and urgent notifications with deterministic pagination."""
     seed_if_empty()
+    valid_page, valid_limit = validate_pagination_params(page=page, limit=limit)
+
     alert_service = _make_alert_service()
-    return alert_service.get_alerts(severity=severity, unread_only=unread_only)
+    raw = alert_service.get_alerts(severity=severity, unread_only=unread_only)
+
+    all_items = raw.items
+    total_count = len(all_items)
+    start_idx = (valid_page - 1) * valid_limit
+    end_idx = start_idx + valid_limit
+    sliced = all_items[start_idx:end_idx]
+
+    response.headers["X-Total-Count"] = str(total_count)
+    response.headers["X-Page"] = str(valid_page)
+    response.headers["X-Limit"] = str(valid_limit)
+
+    return AlertsResponse(
+        items=sliced,
+        total=total_count,
+        unread_count=raw.unread_count,
+        generated_at=raw.generated_at,
+    )
 
 
 @router.get("/alerts/{id}")
@@ -216,9 +261,9 @@ def get_alert_by_id(id: str):
     for item in alerts_resp.items:
         if item.id == id:
             return item
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Alert with ID '{id}' not found",
+    raise NotFoundError(
+        message=f"Alert with ID '{id}' not found",
+        details={"alert_id": id},
     )
 
 
@@ -231,9 +276,9 @@ def acknowledge_alert(id: str):
     if not updated:
         updated = alert_service.acknowledge_alert(id)
     if not updated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Alert with ID '{id}' not found or already acknowledged",
+        raise NotFoundError(
+            message=f"Alert with ID '{id}' not found or already acknowledged",
+            details={"alert_id": id},
         )
     return {"status": "ok", "alert_id": id, "acknowledged": True}
 
@@ -242,14 +287,29 @@ def acknowledge_alert(id: str):
 
 @router.get("/incidents", response_model=List[Incident])
 def get_incidents(
+    response: Response,
     status: Optional[str] = Query(None, description="Comma-separated incident status filter"),
     min_risk: Optional[float] = Query(None, ge=0.0, le=100.0, description="Minimum risk score"),
+    page: int = Query(1, ge=1, description="1-based page index"),
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Items per page"),
 ):
     """Retrieve persistent incidents matching lifecycle status and risk criteria."""
     seed_if_empty()
+    valid_page, valid_limit = validate_pagination_params(page=page, limit=limit)
+
     incident_service = _make_incident_service()
     status_list = [s.strip() for s in status.split(",")] if status else None
-    return incident_service.get_active_incidents(status=status_list, min_risk=min_risk)
+    all_incidents = incident_service.get_active_incidents(status=status_list, min_risk=min_risk)
+
+    total_count = len(all_incidents)
+    start_idx = (valid_page - 1) * valid_limit
+    end_idx = start_idx + valid_limit
+    paged = all_incidents[start_idx:end_idx]
+
+    response.headers["X-Total-Count"] = str(total_count)
+    response.headers["X-Page"] = str(valid_page)
+    response.headers["X-Limit"] = str(valid_limit)
+    return paged
 
 
 @router.get("/incidents/{id}", response_model=Incident)
@@ -259,9 +319,9 @@ def get_incident_by_id(id: str):
     incident_service = _make_incident_service()
     inc = incident_service.get_incident_by_id(id)
     if not inc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Incident with ID '{id}' not found",
+        raise NotFoundError(
+            message=f"Incident with ID '{id}' not found",
+            details={"incident_id": id},
         )
     return inc
 
@@ -273,9 +333,9 @@ def get_incident_timeline(id: str):
     incident_service = _make_incident_service()
     inc = incident_service.get_incident_by_id(id)
     if not inc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Incident with ID '{id}' not found",
+        raise NotFoundError(
+            message=f"Incident with ID '{id}' not found",
+            details={"incident_id": id},
         )
     return incident_service.get_incident_timeline(id)
 
@@ -287,9 +347,9 @@ def get_incident_observations(id: str):
     incident_service = _make_incident_service()
     inc = incident_service.get_incident_by_id(id)
     if not inc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Incident with ID '{id}' not found",
+        raise NotFoundError(
+            message=f"Incident with ID '{id}' not found",
+            details={"incident_id": id},
         )
     return incident_service.get_incident_observations(id)
 
@@ -307,15 +367,21 @@ def get_sources():
 @router.post(
     "/refresh",
     response_model=RefreshResponse,
-    dependencies=[Depends(verify_admin_key)],
+    dependencies=[Depends(verify_admin_key), Depends(verify_refresh_rate_limit)],
 )
-def trigger_refresh(req: Optional[RefreshRequest] = None):
+async def trigger_refresh(req: Optional[RefreshRequest] = None):
     """Trigger data synchronization from NASA FIRMS or reload sample dataset.
     
-    Protected mutation endpoint: requires X-API-Key header when ADMIN_API_KEY is configured.
+    Protected mutation endpoint:
+    - requires X-API-Key header when ADMIN_API_KEY is configured
+    - protected by in-process rate limiting
+    - single-flight execution sharing across concurrent callers and scheduler
     """
     seed_if_empty()
-    data_service = _make_data_service()
     force = req.force_sample if req else False
-    return data_service.sync(force_sample=force)
-
+    orchestrator = get_refresh_orchestrator()
+    return await orchestrator.execute_refresh(
+        force_sample=force,
+        trigger="manual",
+        wait_if_in_flight=True,
+    )
