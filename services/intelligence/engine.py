@@ -1,17 +1,14 @@
 """Thermal Anomaly Intelligence Engine.
 
-Provides unified evaluation of satellite thermal anomalies:
-1. Source Classification (Wildfire, Industrial, Agricultural, Prescribed, Urban, Volcanic, Unknown)
-   with five core intelligence classes:
-   - VEGETATION_FIRE
-   - POTENTIAL_INDUSTRIAL_FIRE
-   - CONTROLLED_HEAT_SOURCE
-   - PERSISTENT_THERMAL_SOURCE
-   - UNKNOWN
-2. Statistical & IsolationForest Anomaly Detection
-3. Composite Risk & Severity Scoring (0-100)
-4. Explainable AI Attribution Factor Generation
-5. Batch and Population-Level Analysis
+Provides unified, truthful, reproducible evaluation of satellite thermal anomalies:
+1. Source Classification: Rule-based evidence accumulation across 7 SourceTypes
+   and 5 internal operational classes.
+2. Anomaly Detection: Primary historical/site baseline comparison with secondary
+   multivariate IsolationForest.
+3. Composite Risk & Severity: Multi-criteria operational consequence heuristic (0-100)
+   decomposed into hazard intensity, exposure, and site permanence.
+4. Explainable AI Factors: Direct signal-grounded attribution factors with centralized thresholds.
+5. Canonical V2 Assessment Contract: Deterministic input hashing, reproducibility, and audit provenance.
 """
 
 from datetime import datetime, timezone
@@ -25,30 +22,35 @@ from services.api.schemas.intelligence import (
     RiskAssessment,
     IntelligenceResult,
 )
+from services.api.schemas.v2.assessment import Assessment
 from services.intelligence.config import (
     ThermalSourceClass,
     DEFAULT_BASELINE_FRP_MEAN,
     DEFAULT_BASELINE_FRP_STD,
     ANOMALY_SIGMA_THRESHOLD,
-    RANDOM_STATE,
+    RANDOM_STATE_PINNED,
+    ALGORITHM_VERSION,
+    METHODOLOGY_V2_COMPOSITE,
 )
 from services.intelligence.context import HotspotContext, NormalizedHotspotInput
 from services.intelligence.features import FeatureExtractor, FeatureVector
 from services.intelligence.classifier import ThermalSourceClassifier
 from services.intelligence.anomaly import AnomalyDetector
 from services.intelligence.risk import RiskAssessor
+from services.intelligence.assessment import AssessmentSynthesizer
+from services.intelligence.reproducibility import now_utc_iso
 
 
 class ThermalIntelligenceEngine:
-    """Core intelligence engine for evaluating thermal anomalies and contextual risk."""
+    """Core intelligence engine for evaluating thermal anomalies and contextual operational risk."""
 
     def __init__(
         self,
-        model_version: str = "v1.2-hybrid-rules",
+        model_version: str = ALGORITHM_VERSION,
         baseline_frp_mean: float = DEFAULT_BASELINE_FRP_MEAN,
         baseline_frp_std: float = DEFAULT_BASELINE_FRP_STD,
         sigma_threshold: float = ANOMALY_SIGMA_THRESHOLD,
-        random_state: int = RANDOM_STATE,
+        random_state: int = RANDOM_STATE_PINNED,
     ):
         self.model_version = model_version
         self.classifier = ThermalSourceClassifier(model_version=model_version)
@@ -59,6 +61,86 @@ class ThermalIntelligenceEngine:
             random_state=random_state,
         )
         self.risk_assessor = RiskAssessor()
+        self.synthesizer = AssessmentSynthesizer(
+            classifier=self.classifier,
+            anomaly_detector=self.anomaly_detector,
+            risk_assessor=self.risk_assessor,
+            algorithm_version=model_version,
+        )
+
+    # ==========================================================================
+    # Canonical V2 Assessment API (Frozen Domain Contracts)
+    # ==========================================================================
+
+    def assess_hotspot(
+        self,
+        hotspot: Union[Hotspot, Dict[str, Any], Any],
+        context: Optional[Union[HotspotContext, Dict[str, Any]]] = None,
+        target_id: Optional[str] = None,
+        target_type: str = "observation",
+        as_of_utc: Optional[str] = None,
+        comparable_hotspots: Optional[List[Any]] = None,
+    ) -> Assessment:
+        """Primary Canonical V2 Entry Point:
+
+        Returns the frozen Assessment domain entity with deterministic input_hash,
+        audit methodology, data quality completeness metrics, and explainable factors.
+        """
+        norm_h = NormalizedHotspotInput.from_input(hotspot)
+        ctx = self._normalize_context(context)
+        features = FeatureExtractor.extract(norm_h, ctx)
+
+        pop_features: Optional[List[FeatureVector]] = None
+        if comparable_hotspots:
+            pop_features = [
+                FeatureExtractor.extract(NormalizedHotspotInput.from_input(ch), HotspotContext())
+                for ch in comparable_hotspots
+            ]
+
+        t_id = target_id or norm_h.id
+        return self.synthesizer.build_assessment(
+            target_id=t_id,
+            features=features,
+            normalized_hotspot=norm_h,
+            context=ctx,
+            target_type=target_type,
+            as_of_utc=as_of_utc,
+            population_features=pop_features,
+        )
+
+    def assess_batch(
+        self,
+        hotspots: List[Union[Hotspot, Dict[str, Any], Any]],
+        contexts: Optional[List[Optional[Union[HotspotContext, Dict[str, Any]]]]] = None,
+        target_type: str = "observation",
+        as_of_utc: Optional[str] = None,
+    ) -> List[Assessment]:
+        """Batch evaluate a collection of hotspots producing canonical V2 Assessments."""
+        if not hotspots:
+            return []
+
+        ctx_list = self._prepare_context_list(hotspots, contexts)
+        all_inputs = [NormalizedHotspotInput.from_input(h) for h in hotspots]
+        all_features = [FeatureExtractor.extract(h, ctx) for h, ctx in zip(all_inputs, ctx_list)]
+
+        assessments: List[Assessment] = []
+        for h, ctx, feat in zip(all_inputs, ctx_list, all_features):
+            asm = self.synthesizer.build_assessment(
+                target_id=h.id,
+                features=feat,
+                normalized_hotspot=h,
+                context=ctx,
+                target_type=target_type,
+                as_of_utc=as_of_utc,
+                population_features=all_features,
+            )
+            assessments.append(asm)
+
+        return assessments
+
+    # ==========================================================================
+    # V1 / Backward-Compatible Public Entry Points
+    # ==========================================================================
 
     def analyze_hotspot(
         self,
@@ -66,32 +148,15 @@ class ThermalIntelligenceEngine:
         context: Optional[Union[HotspotContext, Dict[str, Any]]] = None,
         comparable_hotspots: Optional[List[Any]] = None,
     ) -> IntelligenceResult:
-        """Primary public entry point: Evaluate a single hotspot with its enriched context
-
-        and optional local comparable observations.
-        """
-        # Normalize hotspot input
+        """Evaluate a single hotspot and return backward-compatible IntelligenceResult."""
         normalized_hotspot = NormalizedHotspotInput.from_input(hotspot)
-
-        # Normalize context input
-        if isinstance(context, HotspotContext):
-            ctx = context
-        elif isinstance(context, dict):
-            ctx = HotspotContext.from_dict(context)
-        else:
-            ctx = HotspotContext()
-
-        # Extract features
+        ctx = self._normalize_context(context)
         features = FeatureExtractor.extract(normalized_hotspot, ctx)
 
-        # Extract population features if comparable hotspots provided
         pop_features: Optional[List[FeatureVector]] = None
         if comparable_hotspots:
             pop_features = [
-                FeatureExtractor.extract(
-                    NormalizedHotspotInput.from_input(ch),
-                    HotspotContext(),
-                )
+                FeatureExtractor.extract(NormalizedHotspotInput.from_input(ch), HotspotContext())
                 for ch in comparable_hotspots
             ]
 
@@ -114,7 +179,7 @@ class ThermalIntelligenceEngine:
             anomaly=anomaly,
             risk=risk,
             model_version=self.model_version,
-            evaluated_at=datetime.now(timezone.utc).isoformat(),
+            evaluated_at=now_utc_iso(),
         )
 
     def batch_analyze(
@@ -122,30 +187,13 @@ class ThermalIntelligenceEngine:
         hotspots: List[Union[Hotspot, Dict[str, Any], Any]],
         contexts: Optional[List[Optional[Union[HotspotContext, Dict[str, Any]]]]] = None,
     ) -> List[IntelligenceResult]:
-        """Batch evaluate a collection of hotspots, leveraging the entire population for
-
-        multi-variate anomaly detection where population >= 5.
-        """
+        """Batch evaluate a collection of hotspots returning IntelligenceResult objects."""
         if not hotspots:
             return []
 
-        # Prepare contexts
-        ctx_list: List[HotspotContext] = []
-        for i in range(len(hotspots)):
-            raw_ctx = contexts[i] if contexts and i < len(contexts) else None
-            if isinstance(raw_ctx, HotspotContext):
-                ctx_list.append(raw_ctx)
-            elif isinstance(raw_ctx, dict):
-                ctx_list.append(HotspotContext.from_dict(raw_ctx))
-            else:
-                ctx_list.append(HotspotContext())
-
-        # Extract all feature vectors
+        ctx_list = self._prepare_context_list(hotspots, contexts)
         all_features: List[FeatureVector] = [
-            FeatureExtractor.extract(
-                NormalizedHotspotInput.from_input(h),
-                ctx,
-            )
+            FeatureExtractor.extract(NormalizedHotspotInput.from_input(h), ctx)
             for h, ctx in zip(hotspots, ctx_list)
         ]
 
@@ -165,7 +213,7 @@ class ThermalIntelligenceEngine:
                     anomaly=anomaly,
                     risk=risk,
                     model_version=self.model_version,
-                    evaluated_at=datetime.now(timezone.utc).isoformat(),
+                    evaluated_at=now_utc_iso(),
                 )
             )
 
@@ -276,3 +324,33 @@ class ThermalIntelligenceEngine:
             source_type=source_type,
             anomaly_result=anomaly,
         )
+
+    # ==========================================================================
+    # Internal Helpers
+    # ==========================================================================
+
+    @staticmethod
+    def _normalize_context(context: Optional[Union[HotspotContext, Dict[str, Any]]]) -> HotspotContext:
+        """Normalize context input safely into HotspotContext dataclass."""
+        if isinstance(context, HotspotContext):
+            return context
+        elif isinstance(context, dict):
+            return HotspotContext.from_dict(context)
+        return HotspotContext()
+
+    @staticmethod
+    def _prepare_context_list(
+        hotspots: List[Any],
+        contexts: Optional[List[Optional[Union[HotspotContext, Dict[str, Any]]]]],
+    ) -> List[HotspotContext]:
+        """Align context list length to match hotspot batch size."""
+        ctx_list: List[HotspotContext] = []
+        for i in range(len(hotspots)):
+            raw_ctx = contexts[i] if contexts and i < len(contexts) else None
+            if isinstance(raw_ctx, HotspotContext):
+                ctx_list.append(raw_ctx)
+            elif isinstance(raw_ctx, dict):
+                ctx_list.append(HotspotContext.from_dict(raw_ctx))
+            else:
+                ctx_list.append(HotspotContext())
+        return ctx_list

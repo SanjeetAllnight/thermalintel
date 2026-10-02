@@ -1,43 +1,63 @@
 """Anomaly Detection Subsystem.
 
-Provides:
-1. Sklearn IsolationForest for population-level multi-variate anomaly detection.
-2. Deterministic statistical baseline fallback for single hotspots or small datasets (< 5 items).
-3. Radiometric surge identification while suppressing routine industrial operational flares.
+Redesigned for truthful, reproducible, evidence-based operational intelligence.
+
+Hierarchy:
+1. PRIMARY ANOMALY DEFINITION: Historical and Site Baseline (BaselineEvaluator).
+   Answers: "How unusual is this activity for this location?"
+2. SECONDARY UNSUPERVISED SIGNAL: Scikit-learn IsolationForest for multi-variate
+   population analysis when an explicit population of >= 5 observations is provided.
+
+Guarantees:
+- Deterministic behavior with fixed random_state (42).
+- Zero-variance division-by-zero protection.
+- Documented contamination semantics (0.10: assumed 10% outlier rate in satellite overpasses).
+- Clean degradation on small populations or missing telemetry.
+- Method and version provenance identification.
 """
 
 import math
-from typing import List, Optional, Tuple
+from typing import List, Optional
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
 from services.api.schemas.intelligence import AnomalyResult
+from services.api.schemas.v2.assessment import AnomalyAssessment
 from services.intelligence.config import (
     DEFAULT_BASELINE_FRP_MEAN,
     DEFAULT_BASELINE_FRP_STD,
     ANOMALY_SIGMA_THRESHOLD,
-    ANOMALY_HISTORICAL_SUPPRESSION_COUNT,
     ISOLATION_FOREST_ESTIMATORS,
     ISOLATION_FOREST_CONTAMINATION,
-    RANDOM_STATE,
+    RANDOM_STATE_PINNED,
+    METHODOLOGY_BASELINE_STATISTICAL,
+    METHODOLOGY_ISOLATION_FOREST,
+    ALGORITHM_VERSION,
 )
+from services.intelligence.baseline import BaselineEvaluator, BaselineEvaluation, BaselineStatus
 from services.intelligence.features import FeatureVector
+from services.intelligence.thresholds import ISOLATION_FOREST_MIN_POPULATION
 
 
 class AnomalyDetector:
-    """Statistical and machine learning anomaly detector for thermal observations."""
+    """Evaluates thermal observations using statistical site baselines and secondary IsolationForest."""
 
     def __init__(
         self,
         baseline_frp_mean: float = DEFAULT_BASELINE_FRP_MEAN,
         baseline_frp_std: float = DEFAULT_BASELINE_FRP_STD,
         sigma_threshold: float = ANOMALY_SIGMA_THRESHOLD,
-        random_state: int = RANDOM_STATE,
+        random_state: int = RANDOM_STATE_PINNED,
     ):
         self.baseline_frp_mean = baseline_frp_mean
         self.baseline_frp_std = max(1.0, baseline_frp_std)
         self.sigma_threshold = sigma_threshold
         self.random_state = random_state
+        self.baseline_evaluator = BaselineEvaluator(
+            baseline_frp_mean=baseline_frp_mean,
+            baseline_frp_std=baseline_frp_std,
+            sigma_threshold=sigma_threshold,
+        )
 
     def detect(
         self,
@@ -46,63 +66,39 @@ class AnomalyDetector:
     ) -> AnomalyResult:
         """Evaluate whether a thermal observation is an anomaly.
 
-        If a sufficient population is provided (>= 5 items), fits IsolationForest.
-        Otherwise, falls back to deterministic statistical z-score baseline.
+        If a valid, diverse population of >= 5 items is provided, uses IsolationForest.
+        Otherwise, falls back to the deterministic statistical site baseline.
         """
-        # Batch / population ML path
-        if population_features and len(population_features) >= 5:
+        # Batch / population ML path (secondary signal)
+        if population_features and len(population_features) >= ISOLATION_FOREST_MIN_POPULATION:
             return self._detect_population_isolation_forest(features, population_features)
 
-        # Fallback single / small-data statistical baseline path
-        return self._detect_statistical_fallback(features)
+        # Primary signal: Historical and site statistical baseline
+        return self._detect_statistical_baseline(features)
 
-    def _detect_statistical_fallback(self, f: FeatureVector) -> AnomalyResult:
-        """Deterministic statistical z-score evaluation against regional and historical baselines."""
-        frp = f.frp
-        deviation = (frp - self.baseline_frp_mean) / self.baseline_frp_std
+    def detect_v2(
+        self,
+        features: FeatureVector,
+        population_features: Optional[List[FeatureVector]] = None,
+    ) -> AnomalyAssessment:
+        """Evaluate and return canonical V2 AnomalyAssessment contract."""
+        res = self.detect(features, population_features=population_features)
+        return AnomalyAssessment(
+            is_anomaly=res.is_anomaly,
+            anomaly_score=res.anomaly_score,
+            baseline_deviation_sigma=res.baseline_deviation,
+            anomaly_rationale=res.anomaly_rationale,
+        )
 
-        # Check for historical recurrence suppression
-        # Known industrial / recurrent sites with multiple passes match operational expectations
-        prior_passes = f.prior_detections_30d or 0
-        if prior_passes >= ANOMALY_HISTORICAL_SUPPRESSION_COUNT or f.is_recurrent_site:
-            if deviation < 3.0:
-                is_anomaly = False
-                anomaly_score = max(0.05, min(0.25, 0.10 + (deviation * 0.04)))
-                rationale = (
-                    f"Recurring site ({prior_passes} passes in 30d). "
-                    f"Radiant heat of {frp:.1f} MW aligns with continuous operational baseline."
-                )
-            else:
-                # Sudden massive spike even at an industrial site is an anomaly
-                is_anomaly = True
-                anomaly_score = min(0.95, max(0.65, 0.50 + (deviation * 0.08)))
-                rationale = (
-                    f"Unprecedented radiance spike at recurring site ({prior_passes} passes). "
-                    f"Output exceeds operational baseline by {deviation:.1f} standard deviations."
-                )
-        elif deviation >= self.sigma_threshold:
-            is_anomaly = True
-            # Normalized score from 0.65 to 0.99 for significant deviations
-            anomaly_score = min(0.99, max(0.65, 0.50 + (deviation * 0.10)))
-            rationale = (
-                f"Thermal radiance ({frp:.1f} MW) is {deviation:.1f} standard deviations "
-                f"above regional baseline ({self.baseline_frp_mean:.1f} MW)."
-            )
-        else:
-            is_anomaly = False
-            # Normalized score from 0.0 to 0.55 for normal variation
-            normalized_score = max(0.0, (deviation + 1.0) / 5.0)
-            anomaly_score = min(0.55, normalized_score)
-            rationale = (
-                f"Radiant energy output ({frp:.1f} MW) within normal expected variation bounds "
-                f"({deviation:.1f} sigma deviation)."
-            )
+    def _detect_statistical_baseline(self, f: FeatureVector) -> AnomalyResult:
+        """Primary baseline evaluation: compares against localized and regional empirical priors."""
+        eval_res: BaselineEvaluation = self.baseline_evaluator.evaluate_site_baseline(f)
 
         return AnomalyResult(
-            is_anomaly=is_anomaly,
-            anomaly_score=round(float(anomaly_score), 3),
-            baseline_deviation=round(float(deviation), 2),
-            anomaly_rationale=rationale,
+            is_anomaly=eval_res.is_anomaly,
+            anomaly_score=round(float(eval_res.anomaly_score), 3),
+            baseline_deviation=round(float(eval_res.deviation_sigma), 2),
+            anomaly_rationale=eval_res.rationale,
         )
 
     def _detect_population_isolation_forest(
@@ -110,14 +106,54 @@ class AnomalyDetector:
         target: FeatureVector,
         population: List[FeatureVector],
     ) -> AnomalyResult:
-        """Multi-variate anomaly detection using IsolationForest on an observed population."""
-        # Build numerical feature matrix: [FRP, Brightness, Persistence]
+        """Multi-variate anomaly detection using IsolationForest on an explicit population.
+        
+        Contamination semantics:
+        - `contamination=0.10` specifies that approximately 10% of pixels in a regional overpass
+          are expected to represent true anomalous combustion departures.
+        - Fixed random_state guarantees bitwise determinism across executions.
+        - Checks for degenerate zero-variance in the population before fitting.
+        """
+        # Handle missing target FRP
+        if target.frp is None or math.isnan(target.frp):
+            return self._detect_statistical_baseline(target)
+
+        # Extract features for population: [FRP, Brightness, Persistence]
+        frp_vals = [fv.frp for fv in population if fv.frp is not None and not math.isnan(fv.frp)]
+        if not frp_vals:
+            return self._detect_statistical_baseline(target)
+
+        # Check for zero-variance population (all FRP identical)
+        frp_std = float(np.std(frp_vals))
+        if frp_std < 1e-6:
+            # Clean degradation to baseline handling for zero-variance data
+            pop_mean = float(np.mean(frp_vals))
+            eval_res = self.baseline_evaluator.evaluate_site_baseline(
+                target,
+                custom_baseline_mean=pop_mean,
+                custom_baseline_std=0.0,
+            )
+            return AnomalyResult(
+                is_anomaly=eval_res.is_anomaly,
+                anomaly_score=round(float(eval_res.anomaly_score), 3),
+                baseline_deviation=round(float(eval_res.deviation_sigma), 2),
+                anomaly_rationale=eval_res.rationale,
+            )
+
         X = np.array([
-            [fv.frp, fv.brightness, fv.persistence_score]
+            [
+                max(0.0, float(fv.frp)),
+                max(0.0, float(fv.brightness)),
+                float(fv.persistence_score),
+            ]
             for fv in population
         ], dtype=np.float64)
 
-        target_vec = np.array([[target.frp, target.brightness, target.persistence_score]], dtype=np.float64)
+        target_vec = np.array([[
+            max(0.0, float(target.frp)),
+            max(0.0, float(target.brightness)),
+            float(target.persistence_score),
+        ]], dtype=np.float64)
 
         try:
             iso = IsolationForest(
@@ -127,23 +163,29 @@ class AnomalyDetector:
             )
             iso.fit(X)
 
-            # Decision function: lower values mean more anomalous (typically in [-0.5, 0.5])
             raw_score = float(iso.decision_function(target_vec)[0])
-            pred_label = int(iso.predict(target_vec)[0])  # -1 for anomaly, 1 for normal
+            pred_label = int(iso.predict(target_vec)[0])  # -1 for outlier, 1 for inlier
 
             # Map raw score (-0.4 to +0.4) smoothly to [0.0, 1.0] where 1.0 = highly anomalous
-            # Using sigmoid: 1 / (1 + exp(score * 6.0))
             anomaly_score = 1.0 / (1.0 + math.exp(raw_score * 6.0))
 
-            # Calculate target FRP z-score against this population
-            pop_frps = [fv.frp for fv in population]
-            pop_mean = float(np.mean(pop_frps))
-            pop_std = max(1.0, float(np.std(pop_frps)))
-            deviation = (target.frp - pop_mean) / pop_std
+            pop_mean = float(np.mean(frp_vals))
+            pop_std_safe = max(1.0, frp_std)
+            deviation = (target.frp - pop_mean) / pop_std_safe
 
-            is_anomaly = pred_label == -1 or anomaly_score >= 0.65 or deviation >= self.sigma_threshold
+            # Anomaly criterion combines tree outlier status, anomaly score, and sigma threshold
+            is_anomaly = (pred_label == -1) or (anomaly_score >= 0.65) or (deviation >= self.sigma_threshold)
 
-            if is_anomaly:
+            # Recurrent site suppression check
+            prior_passes = target.prior_detections_30d or 0
+            if (prior_passes >= 15 or target.is_recurrent_site) and deviation < 3.0:
+                is_anomaly = False
+                anomaly_score = min(0.30, anomaly_score * 0.4)
+                rationale = (
+                    f"IsolationForest contextualized with recurring baseline ({prior_passes} passes in 30d). "
+                    f"Operational emitter within regional population bounds."
+                )
+            elif is_anomaly:
                 rationale = (
                     f"IsolationForest identified observation as multivariate outlier "
                     f"(score: {anomaly_score:.2f}, {deviation:.1f} sigma above population mean)."
@@ -162,4 +204,4 @@ class AnomalyDetector:
             )
         except Exception:
             # Resilient fallback if scikit-learn fitting fails on degenerate data
-            return self._detect_statistical_fallback(target)
+            return self._detect_statistical_baseline(target)
