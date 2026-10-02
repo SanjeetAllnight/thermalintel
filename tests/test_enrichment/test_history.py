@@ -175,3 +175,78 @@ def test_database_backed_history_analysis():
     assert res.context.prior_detections_30d == 2
     assert res.context.first_detected_date == "2026-09-25"
     conn.close()
+
+
+def test_parse_date_all_supported_formats():
+    """Verify parse_date correctly handles all supported string formats without bug."""
+    from datetime import datetime, timezone
+    from services.api.history.recurrence import parse_date
+
+    # 1. Standard YYYY-MM-DD
+    dt1 = parse_date("2026-10-01")
+    assert dt1.year == 2026 and dt1.month == 10 and dt1.day == 1
+
+    # 2. Compact YYYYMMDD
+    dt2 = parse_date("20261001")
+    assert dt2.year == 2026 and dt2.month == 10 and dt2.day == 1
+
+    # 3. ISO UTC Zulu YYYY-MM-DDTHH:MM:SZ
+    dt3 = parse_date("2026-10-01T08:45:00Z")
+    assert dt3.year == 2026 and dt3.hour == 8 and dt3.minute == 45
+
+    # 4. ISO without timezone YYYY-MM-DDTHH:MM:S
+    dt4 = parse_date("2026-10-01T08:45:00")
+    assert dt4.year == 2026 and dt4.hour == 8 and dt4.minute == 45
+
+    # 5. Space separated YYYY-MM-DD HH:MM:SS
+    dt5 = parse_date("2026-10-01 08:45:00")
+    assert dt5.year == 2026 and dt5.hour == 8 and dt5.minute == 45
+
+    # 6. Slash separated YYYY/MM/DD
+    dt6 = parse_date("2026/10/01")
+    assert dt6.year == 2026 and dt6.month == 10 and dt6.day == 1
+
+    # 7. ISO offset +00:00
+    dt7 = parse_date("2026-10-01T08:45:00+00:00")
+    assert dt7.year == 2026 and dt7.hour == 8
+
+    # 8. Direct datetime object
+    now_dt = datetime(2026, 10, 1, 12, 0, 0, tzinfo=timezone.utc)
+    assert parse_date(now_dt) == now_dt
+
+
+def test_historical_v2_enrichment_and_provenance():
+    """Verify conversion of HistoricalAnalysisResult to canonical V2 HistoricalEnrichment."""
+    analyzer = HistoricalRecurrenceAnalyzer()
+    target = {
+        "id": "VIIRS-SNPP-001",
+        "latitude": 38.7421,
+        "longitude": -122.8105,
+        "acq_date": "2026-10-01",
+        "acq_time": "0845",
+        "frp": 120.0
+    }
+    # 5 prior detections over past 60 days (2 in 30d, 3 earlier in 90d)
+    history = [
+        {"id": "P1", "latitude": 38.7420, "longitude": -122.8104, "acq_date": "2026-09-20", "acq_time": "0800", "frp": 80.0},
+        {"id": "P2", "latitude": 38.7422, "longitude": -122.8106, "acq_date": "2026-09-10", "acq_time": "0800", "frp": 90.0},
+        {"id": "P3", "latitude": 38.7421, "longitude": -122.8105, "acq_date": "2026-08-15", "acq_time": "0800", "frp": 85.0},
+        {"id": "P4", "latitude": 38.7420, "longitude": -122.8104, "acq_date": "2026-08-01", "acq_time": "0800", "frp": 75.0},
+        {"id": "P5", "latitude": 38.7422, "longitude": -122.8106, "acq_date": "2026-07-20", "acq_time": "0800", "frp": 70.0},
+    ]
+
+    analysis = analyzer.analyze(target, candidate_history=history)
+    assert analysis.context.prior_detections_30d == 2
+    assert analysis.context.prior_detections_90d == 5
+
+    v2_hist = analysis.to_v2_enrichment()
+    assert v2_hist.prior_detections_30d.value == 2
+    assert v2_hist.prior_detections_30d.status == "available"
+    assert v2_hist.prior_detections_90d.value == 5
+    assert v2_hist.prior_detections_90d.status == "available"
+    assert v2_hist.recurrence_score.value is not None
+
+    prov = v2_hist.prior_detections_30d.provenance
+    assert prov.provider == "ThermalIntel_History"
+    assert prov.product == "FIRMS_Historical_Archive"
+    assert prov.freshness_state.value == "fresh"

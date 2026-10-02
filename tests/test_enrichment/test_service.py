@@ -271,3 +271,123 @@ def test_enrichment_invalid_coordinates(tmp_path: Path):
     assert result.hotspot_id == "INVALID-COORD"
     assert result.sources_status["osm"] == "unavailable"
     assert result.sources_status["weather"] == "unavailable"
+
+
+def test_enrichment_independent_provider_failure_osm_down_weather_up(tmp_path: Path):
+    """Failure of OSM provider does NOT corrupt weather or historical telemetry."""
+    cache = EnrichmentCache(cache_dir=tmp_path)
+
+    # Overpass failing
+    mock_overpass = MagicMock(spec=OverpassClient)
+    mock_overpass.fetch_features_radius.side_effect = httpx.ConnectTimeout("Overpass dead")
+
+    # Weather working normally
+    mock_http = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock(spec=httpx.Response)
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "current": {
+            "temperature_2m": 31.5,
+            "relative_humidity_2m": 12.0,
+            "wind_speed_10m": 40.0,
+            "wind_direction_10m": 30.0,
+            "precipitation": 0.0
+        }
+    }
+    mock_resp.url = "https://api.open-meteo.com/v1/forecast"
+    mock_http.get.return_value = mock_resp
+    weather_client = OpenMeteoClient(cache=cache, http_client=mock_http)
+
+    service = EnrichmentService(
+        overpass_client=mock_overpass,
+        weather_client=weather_client,
+        cache=cache
+    )
+
+    prior = [
+        {"id": "P1", "latitude": 38.7420, "longitude": -122.8104, "acq_date": "2026-09-30", "acq_time": "0800", "frp": 100.0}
+    ]
+
+    hotspot = {
+        "id": "ISOLATION-TEST",
+        "latitude": 38.7421,
+        "longitude": -122.8105,
+        "acq_date": "2026-10-01",
+        "acq_time": "0845",
+        "frp": 110.0
+    }
+
+    res = service.enrich_hotspot(hotspot, prior_hotspots=prior)
+
+    # Status must be PARTIAL because weather and history succeeded
+    assert res.status == EnrichmentStatus.PARTIAL
+    assert res.sources_status["osm"] == "unavailable"
+    assert res.sources_status["weather"] == "available"
+    assert res.sources_status["historical"] == "computed"
+
+    # Weather values are intact
+    assert res.weather.temperature_celsius == 31.5
+    assert res.weather.relative_humidity_percent == 12.0
+
+    # Historical values are intact
+    assert res.historical.prior_detections_30d == 1
+
+    # Geospatial is degraded without crashing
+    assert res.geospatial.land_cover == "unknown"
+
+
+def test_enrichment_snapshot_provenance_retention(
+    tmp_path: Path,
+    sample_realistic_hotspot,
+    mock_overpass_features,
+    mock_weather_response
+):
+    """Verify that V2 EnrichmentSnapshot retains full independent provenance across domains."""
+    cache = EnrichmentCache(cache_dir=tmp_path)
+
+    mock_overpass = MagicMock(spec=OverpassClient)
+    mock_overpass.fetch_features_radius.return_value = mock_overpass_features
+
+    mock_http = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock(spec=httpx.Response)
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = mock_weather_response
+    mock_resp.url = "https://api.open-meteo.com/v1/forecast"
+    mock_http.get.return_value = mock_resp
+    weather_client = OpenMeteoClient(cache=cache, http_client=mock_http)
+
+    service = EnrichmentService(
+        overpass_client=mock_overpass,
+        weather_client=weather_client,
+        cache=cache
+    )
+
+    result = service.enrich_hotspot(sample_realistic_hotspot, prior_hotspots=[])
+    snapshot = result.to_v2_snapshot()
+
+    assert snapshot.target_id == sample_realistic_hotspot.id
+    assert snapshot.target_type == "observation"
+
+    # Geospatial provenance
+    assert snapshot.geospatial is not None
+    geo_prov = snapshot.geospatial.land_cover.provenance
+    assert geo_prov.provider == "OpenStreetMap"
+    assert geo_prov.product == "Overpass_API"
+    assert geo_prov.observed_at_utc is not None
+    assert geo_prov.fetched_at_utc is not None
+
+    # Weather provenance
+    assert snapshot.weather is not None
+    w_prov = snapshot.weather.temperature_celsius.provenance
+    assert w_prov.provider == "Open-Meteo"
+    assert w_prov.product == "Forecast_API"
+
+    # Historical provenance
+    assert snapshot.historical is not None
+    h_prov = snapshot.historical.prior_detections_30d.provenance
+    assert h_prov.provider == "ThermalIntel_History"
+
+    # Terrain provenance
+    assert snapshot.terrain is not None
+    t_prov = snapshot.terrain.elevation_meters.provenance
+    assert "Open-Meteo" in t_prov.provider

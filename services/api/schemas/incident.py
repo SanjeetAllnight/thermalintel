@@ -23,14 +23,14 @@ class GeospatialContext(BaseModel):
 
 class WeatherContext(BaseModel):
     """Open-Meteo weather parameters at the hotspot coordinates."""
-    temperature_celsius: float = Field(..., description="Ambient air temperature in °C")
-    relative_humidity_percent: float = Field(..., ge=0.0, le=100.0, description="Relative humidity percentage")
-    wind_speed_kmh: float = Field(..., ge=0.0, description="Wind speed at 10m in km/h")
+    temperature_celsius: Optional[float] = Field(None, description="Ambient air temperature in °C (None if unavailable)")
+    relative_humidity_percent: Optional[float] = Field(None, ge=0.0, le=100.0, description="Relative humidity percentage (None if unavailable)")
+    wind_speed_kmh: Optional[float] = Field(None, ge=0.0, description="Wind speed at 10m in km/h (None if unavailable)")
     wind_gust_kmh: Optional[float] = Field(None, description="Wind gust speed in km/h")
-    wind_direction_degrees: float = Field(..., ge=0.0, le=360.0, description="Wind direction in degrees")
-    wind_direction_cardinal: str = Field(..., description="Cardinal wind direction (e.g. NW, SE)")
-    precipitation_mm: float = Field(default=0.0, ge=0.0, description="Recent precipitation in mm (last 24 hours)")
-    fire_weather_index: Optional[float] = Field(None, ge=0.0, le=100.0, description="Normalized FWI fire danger index")
+    wind_direction_degrees: Optional[float] = Field(None, ge=0.0, le=360.0, description="Wind direction in degrees (None if unavailable)")
+    wind_direction_cardinal: Optional[str] = Field(None, description="Cardinal wind direction (e.g. NW, SE, or None)")
+    precipitation_mm: Optional[float] = Field(default=0.0, ge=0.0, description="Recent precipitation in mm (last 24 hours)")
+    fire_weather_index: Optional[float] = Field(None, ge=0.0, le=100.0, description="Normalized fire danger proxy index")
     forecast_summary: str = Field(..., description="Short weather forecast description")
 
 
