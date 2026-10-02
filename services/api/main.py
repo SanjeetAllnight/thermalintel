@@ -18,8 +18,14 @@ from services.api.routers.errors import register_error_handlers
 from services.api.database import seed_if_empty
 from services.api.security import get_cors_origins, RequestCorrelationMiddleware
 from services.api.scheduler import get_scheduler
+from services.observability.integration import setup_observability
+from services.observability.middleware import ObservabilityMiddleware
 
 load_dotenv()
+
+# Phase 4: Bootstrap structured logging and metrics before anything else
+setup_observability()
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,7 +65,10 @@ register_error_handlers(app)
 # 2. Add Request Correlation ID Middleware (outermost for all requests)
 app.add_middleware(RequestCorrelationMiddleware)
 
-# 3. Enable configuration-driven CORS without wildcards
+# 3. Phase 4: Observability ASGI middleware (request timing, metrics, trace context)
+app.add_middleware(ObservabilityMiddleware)
+
+# 4. Enable configuration-driven CORS without wildcards
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_cors_origins(),
@@ -68,7 +77,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 4. Include routers: Operational probes, Modernized V1, and Frozen Legacy Contract
+# 5. Include routers: Operational probes, Modernized V1, and Frozen Legacy Contract
 app.include_router(operational_router)
 app.include_router(v1_router)
 app.include_router(api_router)

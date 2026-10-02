@@ -51,9 +51,10 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
     """Starlette middleware providing request correlation, logging, and metrics."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        # Extract or generate request ID
+        # Prefer request ID already set by RequestCorrelationMiddleware (req- prefix).
         request_id = (
-            request.headers.get("x-request-id")
+            getattr(request.state, "request_id", None)
+            or request.headers.get("x-request-id")
             or request.headers.get("x-correlation-id")
             or f"req_{uuid.uuid4().hex[:12]}"
         )
@@ -84,8 +85,10 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
             try:
                 response = await call_next(request)
                 status_code = response.status_code
-                # Propagate request ID in response header
-                response.headers["X-Request-ID"] = request_id
+                # Only set X-Request-ID if inner middleware hasn't already set it
+                # (RequestCorrelationMiddleware owns this header when present)
+                if "X-Request-ID" not in response.headers:
+                    response.headers["X-Request-ID"] = request_id
                 return response
             except Exception as exc:
                 error_type = exc.__class__.__name__
