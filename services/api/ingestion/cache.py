@@ -1,15 +1,33 @@
-"""Local ephemeral cache for raw and normalized satellite thermal anomaly data."""
+"""Local ephemeral cache for raw and normalized satellite thermal anomaly data.
+
+Provides fast response retrieval, graceful offline fallback, and stale-data inspection.
+Ensures cache age is knowable, stale data is distinguishable from fresh data, and
+stale cache can be used intentionally during provider outages without pretending to be live.
+"""
 
 import hashlib
 import json
 import logging
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, Dict, Tuple
 
 from services.api.ingestion.config import config, IngestionConfig
+from services.api.schemas.v2.common import FreshnessState
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CacheMetadata:
+    """Detailed metadata for a cached payload."""
+    key: str
+    timestamp: float
+    age_seconds: float
+    ttl: int
+    is_stale: bool
+    size_bytes: int
 
 
 class DataCache:
@@ -39,11 +57,50 @@ class DataCache:
     def _entry_path(self, key: str) -> Path:
         return self.cache_dir / f"{key}.json"
 
-    def get(self, key: str, max_age_seconds: Optional[int] = None) -> Optional[str]:
-        """Retrieve cached text content if present and unexpired.
+    def get_metadata(self, key: str) -> Optional[CacheMetadata]:
+        """Inspect cache entry metadata to know its age, TTL, and stale state."""
+        path = self._entry_path(key)
+        if not path.is_file():
+            return None
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                entry = json.load(f)
+
+            cached_at = entry.get("timestamp", 0)
+            ttl = entry.get("ttl", self.default_ttl)
+            age = max(0.0, time.time() - cached_at)
+            is_stale = age > ttl
+
+            return CacheMetadata(
+                key=key,
+                timestamp=cached_at,
+                age_seconds=round(age, 2),
+                ttl=ttl,
+                is_stale=is_stale,
+                size_bytes=path.stat().st_size,
+            )
+        except Exception as e:
+            logger.warning(f"Error reading cache metadata for {key}: {e}")
+            return None
+
+    def get(
+        self,
+        key: str,
+        max_age_seconds: Optional[int] = None,
+        allow_stale: bool = False,
+    ) -> Optional[str]:
+        """Retrieve cached text content if present.
+        
+        Args:
+            key: Cache entry key.
+            max_age_seconds: Optional explicit maximum age override.
+            allow_stale: If True, return payload even if expired (e.g. for intentional
+                         fallback during provider failure).
         
         Returns:
-            Cached payload string if valid, or None if expired/corrupted/missing.
+            Cached payload string if valid (or if allow_stale=True and entry exists),
+            or None if missing, corrupted, or expired when allow_stale=False.
         """
         path = self._entry_path(key)
         if not path.is_file():
@@ -56,11 +113,14 @@ class DataCache:
             cached_at = entry.get("timestamp", 0)
             ttl = entry.get("ttl", self.default_ttl)
             effective_ttl = max_age_seconds if max_age_seconds is not None else ttl
+            age = time.time() - cached_at
 
             # Check expiration
-            if time.time() - cached_at > effective_ttl:
-                logger.debug(f"Cache expired for key: {key}")
-                return None
+            if age > effective_ttl:
+                if not allow_stale:
+                    logger.debug(f"Cache expired for key: {key} (age={age:.1f}s > ttl={effective_ttl}s)")
+                    return None
+                logger.info(f"Serving stale cache for key: {key} (age={age:.1f}s > ttl={effective_ttl}s)")
 
             payload = entry.get("payload")
             if payload is None:
@@ -69,6 +129,34 @@ class DataCache:
         except Exception as e:
             logger.warning(f"Error reading cache entry {path}: {e}")
             return None
+
+    def get_with_freshness(
+        self,
+        key: str,
+        max_age_seconds: Optional[int] = None,
+    ) -> Tuple[Optional[str], FreshnessState, float]:
+        """Retrieve cached payload alongside its explicit FreshnessState and age in seconds.
+        
+        Returns:
+            Tuple of (payload, FreshnessState, age_seconds).
+            FreshnessState will be:
+            - FRESH / CACHED if unexpired
+            - STALE if expired but readable
+            - UNAVAILABLE if missing or corrupt
+        """
+        meta = self.get_metadata(key)
+        if not meta:
+            return None, FreshnessState.UNAVAILABLE, 0.0
+
+        effective_ttl = max_age_seconds if max_age_seconds is not None else meta.ttl
+        is_stale = meta.age_seconds > effective_ttl
+
+        payload = self.get(key, allow_stale=True)
+        if payload is None:
+            return None, FreshnessState.UNAVAILABLE, meta.age_seconds
+
+        state = FreshnessState.STALE if is_stale else FreshnessState.CACHED
+        return payload, state, meta.age_seconds
 
     def set(self, key: str, payload: str, ttl_seconds: Optional[int] = None) -> bool:
         """Store text payload in cache with timestamp and TTL.
@@ -97,7 +185,15 @@ class DataCache:
 
     def is_valid(self, key: str, max_age_seconds: Optional[int] = None) -> bool:
         """Check whether a cache entry exists and is not expired."""
-        return self.get(key, max_age_seconds=max_age_seconds) is not None
+        return self.get(key, max_age_seconds=max_age_seconds, allow_stale=False) is not None
+
+    def is_stale(self, key: str, max_age_seconds: Optional[int] = None) -> bool:
+        """Check whether a cache entry exists but is expired."""
+        meta = self.get_metadata(key)
+        if not meta:
+            return False
+        effective_ttl = max_age_seconds if max_age_seconds is not None else meta.ttl
+        return meta.age_seconds > effective_ttl
 
     def clear(self, key: Optional[str] = None) -> int:
         """Clear a specific cache entry, or all cache entries if key is None.
