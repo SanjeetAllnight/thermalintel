@@ -33,14 +33,36 @@ def init_db():
     run_migrations(DB_PATH)
 
 
-def seed_if_empty():
-    """Populate database from data/sample if empty."""
+_seeded_db_paths = set()
+
+
+def invalidate_seed_cache(path: Optional[str] = None) -> None:
+    """Clear seed cache for a given path or all paths."""
+    global _seeded_db_paths
+    if path:
+        _seeded_db_paths.discard(str(path))
+    else:
+        _seeded_db_paths.clear()
+
+
+def seed_if_empty(force: bool = False):
+    """Populate database from data/sample if empty.
+    
+    Caches verified initialization state per DB_PATH to avoid repeated
+    expensive COUNT(*) and migration execution on every request.
+    """
+    global _seeded_db_paths
+    current_db = str(DB_PATH)
+    if not force and current_db in _seeded_db_paths:
+        return
+
     init_db()
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) as cnt FROM hotspots")
         count = cursor.fetchone()["cnt"]
         if count > 0:
+            _seeded_db_paths.add(current_db)
             return
 
         # Load sample hotspots
@@ -112,3 +134,4 @@ def seed_if_empty():
         cursor.execute("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('data_mode', 'demo')")
         cursor.execute("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('last_sync', '2026-10-01T08:50:00Z')")
         conn.commit()
+        _seeded_db_paths.add(current_db)

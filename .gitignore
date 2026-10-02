@@ -49,6 +49,10 @@ yarn-error.log*
 data/cache/*
 !data/cache/.gitkeep
 !data/cache/README.md
+data/raw/*
+!data/raw/.gitkeep
+data/quarantine/*
+!data/quarantine/.gitkeep
 
 # IDE & OS
 .vscode/

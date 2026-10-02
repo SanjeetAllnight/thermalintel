@@ -5,7 +5,7 @@ import logging
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from services.api.database import get_connection, init_db
+from services.api.database import get_connection, init_db, invalidate_seed_cache
 from services.api.schemas import Hotspot, RiskLevel, SourceType, DataMode
 
 logger = logging.getLogger(__name__)
@@ -251,6 +251,7 @@ class HotspotRepository:
                 cursor.execute("SELECT COUNT(*) as total FROM hotspots")
                 cnt = cursor.fetchone()["total"]
                 cursor.execute("DELETE FROM hotspots")
+                invalidate_seed_cache()
                 return cnt
 
     # Metadata operations
