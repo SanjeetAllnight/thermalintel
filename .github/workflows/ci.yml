@@ -1,0 +1,156 @@
+name: CI Quality Gate & Container Pipeline
+
+on:
+  push:
+    branches: [main, v2, "v2-*"]
+  pull_request:
+    branches: [main, v2]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-quality-and-tests:
+    name: Backend Tests & Quality Checks
+    runs-on: ubuntu-latest
+    env:
+      DATA_MODE: demo
+      ENVIRONMENT: test
+      LOG_FORMAT: text
+      DATABASE_PATH: thermalintel_test.db
+      CACHE_DIR: data/cache
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Syntax and Bytecode Validation
+        run: |
+          python -m compileall services tests scripts scenarios evaluation
+
+      - name: Verify Database Migrations & Seeding
+        run: |
+          python -c "from services.api.database import init_db, seed_if_empty; init_db(); seed_if_empty()"
+
+      - name: Run Backend Test Suite (Observability, Unit, Replay, Scenarios)
+        run: |
+          pytest tests/ services/ scenarios/ evaluation/ -v
+
+      - name: Verify Native Health & Readiness CLI Probe
+        run: |
+          python -m services.observability.health --type=readiness
+          python -m services.observability.health --type=liveness
+
+  frontend-quality-and-build:
+    name: Frontend Tests, Typecheck & Production Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Run Vitest Unit & Smoke Tests
+        run: npm test -- --run
+
+      - name: Run TypeScript Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build Next.js Production Bundle
+        env:
+          NEXT_PUBLIC_API_URL: /api
+        run: npm run build
+
+  container-build-and-smoke:
+    name: Container Build & Deployment Smoke Test
+    needs: [backend-quality-and-tests, frontend-quality-and-build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          tags: thermalintel-backend:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Frontend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.frontend
+          tags: thermalintel-frontend:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Backend Container Smoke Test
+        run: |
+          echo "Starting backend container in demo mode..."
+          docker run -d \
+            --name smoke-backend \
+            -p 8000:8000 \
+            -e DATA_MODE=demo \
+            -e ENVIRONMENT=production \
+            -e LOG_FORMAT=json \
+            thermalintel-backend:ci
+
+          echo "Awaiting container startup and health status..."
+          sleep 5
+
+          # Verify container is running
+          docker ps | grep smoke-backend
+
+          # Verify healthprobe endpoint response
+          echo "Checking container readiness probe..."
+          docker exec smoke-backend python -m services.observability.health --type=readiness
+
+          # Verify HTTP response
+          curl -s -f http://localhost:8000/api/health || { echo "Health check failed"; docker logs smoke-backend; exit 1; }
+
+          # Check structured logs
+          echo "Inspecting structured JSON log sample:"
+          docker logs smoke-backend | head -n 10
+
+          # Test graceful signal handling
+          echo "Stopping container with SIGTERM..."
+          docker stop -t 15 smoke-backend
+
+          # Confirm exit code 0
+          EXIT_CODE=$(docker inspect smoke-backend --format='{{.State.ExitCode}}')
+          echo "Container exited with code: $EXIT_CODE"
+          [ "$EXIT_CODE" -eq 0 ]

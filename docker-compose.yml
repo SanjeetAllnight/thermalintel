@@ -1,0 +1,70 @@
+# ==============================================================================
+# ThermalIntel V2 Local Production-like Orchestration
+# ==============================================================================
+# Usage:
+#   docker compose up --build -d
+#   docker compose logs -f
+#   docker compose down -v
+# ==============================================================================
+
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: thermalintel-backend
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATA_MODE=${DATA_MODE:-demo}
+      - FIRMS_MAP_KEY=${FIRMS_MAP_KEY:-}
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - DATABASE_PATH=/app/data/thermalintel.db
+      - CACHE_DIR=/app/data/cache
+      - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
+    volumes:
+      - thermalintel_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-m", "services.observability.health", "--type=readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_URL: /api
+    container_name: thermalintel-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - BACKEND_INTERNAL_URL=http://backend:8000/api/:path*
+      - NEXT_PUBLIC_API_URL=/api
+      - NEXT_PUBLIC_CARTO_API_KEY=${NEXT_PUBLIC_CARTO_API_KEY:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  thermalintel_data:
+    driver: local
