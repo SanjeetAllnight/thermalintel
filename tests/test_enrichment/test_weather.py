@@ -121,7 +121,7 @@ def test_open_meteo_client_failure_fallback(tmp_path: Path):
 
     assert result.status == WeatherStatus.UNAVAILABLE
     assert result.context.forecast_summary == "Weather service unreachable"
-    assert result.context.temperature_celsius == 0.0
+    assert result.context.temperature_celsius is None
 
 
 def test_open_meteo_client_invalid_coordinates(tmp_path: Path):
@@ -132,3 +132,136 @@ def test_open_meteo_client_invalid_coordinates(tmp_path: Path):
     result = client.fetch_weather(999.0, -122.8105)
     assert result.status == WeatherStatus.UNAVAILABLE
     assert "Invalid coordinates" in result.context.forecast_summary
+
+
+def test_distinguish_zero_celsius_from_unavailable(tmp_path: Path):
+    """Downstream consumers can distinguish legitimate 0.0°C from missing weather telemetry."""
+    cache = EnrichmentCache(cache_dir=tmp_path)
+
+    # 1. Genuine 0°C freezing temperature
+    mock_http = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock(spec=httpx.Response)
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "current": {
+            "temperature_2m": 0.0,
+            "relative_humidity_2m": 85.0,
+            "wind_speed_10m": 12.0,
+            "wind_direction_10m": 180.0,
+            "precipitation": 0.0,
+            "weather_code": 3
+        }
+    }
+    mock_resp.url = "https://api.open-meteo.com/v1/forecast"
+    mock_http.get.return_value = mock_resp
+
+    client = OpenMeteoClient(cache=cache, http_client=mock_http)
+    freezing_res = client.fetch_weather(45.0, -110.0)
+
+    assert freezing_res.status == WeatherStatus.AVAILABLE
+    assert freezing_res.context.temperature_celsius == 0.0
+    assert freezing_res.context.temperature_celsius is not None
+
+    # 2. Unavailable weather telemetry
+    unavail_res = client.fetch_weather(999.0, 999.0)
+    assert unavail_res.status == WeatherStatus.UNAVAILABLE
+    assert unavail_res.context.temperature_celsius is None
+
+
+def test_open_meteo_missing_variable(tmp_path: Path):
+    """When optional atmospheric variables are absent, no fabricated values are produced."""
+    cache = EnrichmentCache(cache_dir=tmp_path)
+    mock_http = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock(spec=httpx.Response)
+    mock_resp.status_code = 200
+    # Payload with missing wind gust and missing humidity
+    mock_resp.json.return_value = {
+        "current": {
+            "temperature_2m": 22.5,
+            "wind_speed_10m": 15.0,
+            "wind_direction_10m": 90.0,
+            "precipitation": None
+        }
+    }
+    mock_resp.url = "https://api.open-meteo.com/v1/forecast"
+    mock_http.get.return_value = mock_resp
+
+    client = OpenMeteoClient(cache=cache, http_client=mock_http)
+    res = client.fetch_weather(38.7421, -122.8105)
+
+    assert res.status == WeatherStatus.AVAILABLE
+    assert res.context.temperature_celsius == 22.5
+    assert res.context.relative_humidity_percent is None
+    assert res.context.wind_gust_kmh is None
+    # Fire weather proxy cannot be computed without humidity -> explicitly None
+    assert res.context.fire_weather_index is None
+
+
+def test_open_meteo_stale_cache_fallback(tmp_path: Path):
+    """When live API fails, client recovers via stale cache marked as STALE freshness."""
+    from services.api.enrichment.cache import generate_cache_key
+    from services.api.schemas.v2.common import FreshnessState
+
+    cache = EnrichmentCache(cache_dir=tmp_path)
+    key = generate_cache_key("weather", lat=38.74, lon=-122.81)
+    cache.set("weather", key, {
+        "temperature_celsius": 18.0,
+        "relative_humidity_percent": 50.0,
+        "wind_speed_kmh": 10.0,
+        "wind_direction_degrees": 180.0,
+        "wind_direction_cardinal": "S",
+        "precipitation_mm": 0.0,
+        "fire_weather_index": 20.0,
+        "forecast_summary": "Stale weather"
+    }, ttl_seconds=-10)  # Expired entry
+
+    mock_http = MagicMock(spec=httpx.Client)
+    mock_http.get.side_effect = httpx.ConnectTimeout("Open-Meteo down")
+
+    client = OpenMeteoClient(cache=cache, http_client=mock_http)
+    res = client.fetch_weather(38.7421, -122.8105)
+
+    assert res.status == WeatherStatus.CACHED
+    assert res.context.temperature_celsius == 18.0
+    assert res.provenance is not None
+    assert res.provenance.freshness_state == FreshnessState.STALE
+
+
+def test_open_meteo_batch_query(tmp_path: Path):
+    """Test fetch_weather_batch for multi-location querying and caching."""
+    cache = EnrichmentCache(cache_dir=tmp_path)
+    mock_http = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock(spec=httpx.Response)
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = [
+        {
+            "latitude": 38.74,
+            "longitude": -122.81,
+            "current": {
+                "temperature_2m": 30.0,
+                "relative_humidity_2m": 20.0,
+                "wind_speed_10m": 25.0,
+                "wind_direction_10m": 45.0
+            }
+        },
+        {
+            "latitude": 29.74,
+            "longitude": -95.01,
+            "current": {
+                "temperature_2m": 32.0,
+                "relative_humidity_2m": 60.0,
+                "wind_speed_10m": 15.0,
+                "wind_direction_10m": 120.0
+            }
+        }
+    ]
+    mock_resp.url = "https://api.open-meteo.com/v1/forecast?latitude=38.7400,29.7400"
+    mock_http.get.return_value = mock_resp
+
+    client = OpenMeteoClient(cache=cache, http_client=mock_http)
+    coords = [(38.7421, -122.8105), (29.7410, -95.0120)]
+    results = client.fetch_weather_batch(coords)
+
+    assert len(results) == 2
+    assert results[0].context.temperature_celsius == 30.0
+    assert results[1].context.temperature_celsius == 32.0

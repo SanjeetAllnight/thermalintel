@@ -233,3 +233,117 @@ def filter_features_in_radius(
 
     results.sort(key=lambda item: item[1])
     return results
+
+
+def latlon_to_cartesian_meters(lat: float, lon: float) -> Tuple[float, float, float]:
+    """Convert WGS84 lat/lon to 3D Cartesian coordinates on Earth sphere in meters.
+    
+    Used for Euclidean distance calculations and kd-tree spatial indexing.
+    """
+    validate_coordinates(lat, lon)
+    phi = math.radians(lat)
+    lam = math.radians(lon)
+    x = EARTH_RADIUS_METERS * math.cos(phi) * math.cos(lam)
+    y = EARTH_RADIUS_METERS * math.cos(phi) * math.sin(lam)
+    z = EARTH_RADIUS_METERS * math.sin(phi)
+    return (x, y, z)
+
+
+def point_in_polygon(
+    lat: float,
+    lon: float,
+    polygon_coords: Sequence[Sequence[float]],
+    geojson_order: bool = True
+) -> bool:
+    """Ray casting algorithm to determine if point (lat, lon) is inside a polygon ring.
+    
+    Args:
+        lat: Target latitude in decimal degrees.
+        lon: Target longitude in decimal degrees.
+        polygon_coords: List of coordinate pairs defining the linear ring.
+        geojson_order: If True, coords are [lon, lat] (standard GeoJSON). If False, [lat, lon].
+        
+    Returns:
+        True if the point lies strictly inside the polygon boundary.
+    """
+    if len(polygon_coords) < 3:
+        return False
+
+    # Standardize to (p_lat, p_lon)
+    if geojson_order:
+        pts = [(pt[1], pt[0]) for pt in polygon_coords]
+    else:
+        pts = [(pt[0], pt[1]) for pt in polygon_coords]
+
+    # Bounding box quick rejection
+    lats = [p[0] for p in pts]
+    lons = [p[1] for p in pts]
+    if not (min(lats) <= lat <= max(lats) and min(lons) <= lon <= max(lons)):
+        return False
+
+    inside = False
+    n = len(pts)
+    p1_lat, p1_lon = pts[0]
+    for i in range(1, n + 1):
+        p2_lat, p2_lon = pts[i % n]
+        if (p1_lat > lat) != (p2_lat > lat):
+            # Compute x-intersection of line segment with horizontal ray
+            if p2_lat != p1_lat:
+                x_inters = (lat - p1_lat) * (p2_lon - p1_lon) / (p2_lat - p1_lat) + p1_lon
+                if lon < x_inters:
+                    inside = not inside
+        p1_lat, p1_lon = p2_lat, p2_lon
+
+    return inside
+
+
+def point_in_geojson_geometry(lat: float, lon: float, geometry: Dict[str, Any]) -> bool:
+    """Determine if (lat, lon) is inside a GeoJSON Polygon or MultiPolygon geometry.
+    
+    Args:
+        lat: Target latitude.
+        lon: Target longitude.
+        geometry: GeoJSON geometry dictionary.
+        
+    Returns:
+        True if the point intersects the geometry.
+    """
+    if not isinstance(geometry, dict):
+        return False
+
+    geom_type = geometry.get("type", "")
+    coords = geometry.get("coordinates", [])
+
+    if geom_type == "Polygon":
+        if not coords or not isinstance(coords, list):
+            return False
+        # Outer boundary ring
+        outer = coords[0]
+        if not point_in_polygon(lat, lon, outer, geojson_order=True):
+            return False
+        # Check interior rings (holes)
+        for hole in coords[1:]:
+            if point_in_polygon(lat, lon, hole, geojson_order=True):
+                return False
+        return True
+
+    elif geom_type == "MultiPolygon":
+        if not coords or not isinstance(coords, list):
+            return False
+        for poly in coords:
+            if not poly or not isinstance(poly, list):
+                continue
+            outer = poly[0]
+            if point_in_polygon(lat, lon, outer, geojson_order=True):
+                # Check holes
+                in_hole = False
+                for hole in poly[1:]:
+                    if point_in_polygon(lat, lon, hole, geojson_order=True):
+                        in_hole = True
+                        break
+                if not in_hole:
+                    return True
+        return False
+
+    return False
+

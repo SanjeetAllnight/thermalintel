@@ -18,20 +18,43 @@ from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from services.api.enrichment.cache import EnrichmentCache
+    from services.api.geospatial.asset_store import AssetStoreInterface
 from services.api.geospatial.spatial import (
     degrees_to_cardinal,
     filter_features_in_radius,
     find_nearest_feature,
     haversine_distance_meters,
+    point_in_geojson_geometry,
     validate_coordinates,
 )
 from services.api.schemas.incident import GeospatialContext
+from services.api.schemas.v2.common import FreshnessState, Provenance, now_utc_iso
+from services.api.schemas.v2.enrichment import EnrichmentDatum, GeospatialEnrichment
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 DEFAULT_SEARCH_RADIUS_METERS = 5000.0
 DEFAULT_TIMEOUT_SECONDS = 25.0
+
+
+class OSMStatus(str, Enum):
+    SUCCESS_NON_EMPTY = "successful_non_empty"
+    SUCCESS_EMPTY = "successful_empty"
+    STALE_CACHE = "stale_cache"
+    UNAVAILABLE = "unavailable"
+    PROVIDER_FAILURE = "provider_failure"
+
+
+class OverpassResult(BaseModel):
+    """Rich container for Overpass features, status semantics, and audit provenance."""
+    features: List["OSMFeature"] = Field(default_factory=list)
+    status: OSMStatus = Field(default=OSMStatus.SUCCESS_EMPTY)
+    error_message: Optional[str] = None
+    is_cached: bool = False
+    is_stale: bool = False
+    source_url: Optional[str] = None
+    provenance: Optional[Provenance] = None
 
 
 class FeatureCategory(str, Enum):
@@ -248,14 +271,16 @@ def parse_overpass_response(data: Dict[str, Any]) -> List[OSMFeature]:
 
 
 class OverpassClient:
-    """HTTP client for querying OpenStreetMap Overpass with built-in cache and fallbacks."""
+    """HTTP client for querying OpenStreetMap Overpass with built-in cache, rate limiter, and fallbacks."""
 
     def __init__(
         self,
         api_url: Optional[str] = None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
         cache: Optional["EnrichmentCache"] = None,
-        http_client: Optional[httpx.Client] = None
+        http_client: Optional[httpx.Client] = None,
+        rate_limiter: Optional[Any] = None,
+        asset_store: Optional["AssetStoreInterface"] = None
     ):
         self.api_url = api_url or os.getenv("OVERPASS_API_URL", DEFAULT_OVERPASS_URL)
         self.timeout = timeout
@@ -264,51 +289,161 @@ class OverpassClient:
             cache = EnrichmentCache()
         self.cache = cache
         self._external_client = http_client
+        if rate_limiter is None:
+            from services.api.geospatial.rate_limiter import OverpassRateLimiter
+            rate_limiter = OverpassRateLimiter()
+        self.rate_limiter = rate_limiter
+        if asset_store is None:
+            try:
+                from services.api.geospatial.asset_store import GeoJSONAssetStore
+                asset_store = GeoJSONAssetStore(auto_load=True)
+            except Exception:
+                asset_store = None
+        self.asset_store = asset_store
+        self._last_radius_result: Optional[OverpassResult] = None
+        self._last_bbox_result: Optional[OverpassResult] = None
 
-    def _execute_query(self, query: str, cache_key: str) -> List[OSMFeature]:
-        """Execute query with cache lookup and resilient fallback handling."""
-        # 1. Check valid cache
+    def _execute_query_rich(
+        self,
+        query: str,
+        cache_key: str,
+        reference: str = ""
+    ) -> OverpassResult:
+        """Execute query with cache lookup, rate limiting, and resilient fallback handling."""
+        fetch_time = now_utc_iso()
+
+        # 1. Check valid cache BEFORE network or rate-limiting
         cached_data = self.cache.get("osm", cache_key, allow_stale=False)
         if cached_data is not None:
-            return [OSMFeature(**item) for item in cached_data]
+            features = [OSMFeature(**item) for item in cached_data]
+            status = OSMStatus.SUCCESS_NON_EMPTY if features else OSMStatus.SUCCESS_EMPTY
+            return OverpassResult(
+                features=features,
+                status=status,
+                is_cached=True,
+                is_stale=False,
+                source_url=self.api_url,
+                provenance=Provenance(
+                    provider="OpenStreetMap",
+                    product="Overpass_API",
+                    observed_at_utc=fetch_time,
+                    fetched_at_utc=fetch_time,
+                    freshness_state=FreshnessState.CACHED,
+                    ttl_seconds=86400,
+                    reference=reference or cache_key
+                )
+            )
 
-        # 2. Perform live network call
-        try:
-            headers = {"User-Agent": "ThermalIntel/1.0 (geospatial-enrichment-prototype)"}
+        # 2. Perform live network call protected by OverpassRateLimiter
+        headers = {"User-Agent": "ThermalIntel/1.0 (geospatial-enrichment-prototype)"}
+        network_error: Optional[str] = None
+
+        def _do_http():
             client = self._external_client or httpx.Client(timeout=self.timeout)
             try:
-                response = client.post(self.api_url, data={"data": query}, headers=headers)
-                if response.status_code == 200:
-                    raw_json = response.json()
-                    features = parse_overpass_response(raw_json)
-                    # Cache normalized records
-                    self.cache.set(
-                        "osm",
-                        cache_key,
-                        [f.model_dump() for f in features]
-                    )
-                    return features
-                else:
-                    logger.warning(
-                        "Overpass query returned HTTP %d: %s",
-                        response.status_code,
-                        response.text[:200]
-                    )
+                return client.post(self.api_url, data={"data": query}, headers=headers)
             finally:
                 if self._external_client is None:
                     client.close()
 
-        except Exception as e:
-            logger.warning("Overpass network request failed: %s. Checking stale cache.", e)
+        resp, err = self.rate_limiter.execute_with_retry(_do_http)
+        if resp is not None and resp.status_code == 200:
+            try:
+                raw_json = resp.json()
+                features = parse_overpass_response(raw_json)
+                # Cache normalized records (including empty to avoid query storms on empty regions)
+                self.cache.set(
+                    "osm",
+                    cache_key,
+                    [f.model_dump() for f in features]
+                )
+                status = OSMStatus.SUCCESS_NON_EMPTY if features else OSMStatus.SUCCESS_EMPTY
+                return OverpassResult(
+                    features=features,
+                    status=status,
+                    is_cached=False,
+                    is_stale=False,
+                    source_url=str(resp.url),
+                    provenance=Provenance(
+                        provider="OpenStreetMap",
+                        product="Overpass_API",
+                        observed_at_utc=fetch_time,
+                        fetched_at_utc=fetch_time,
+                        freshness_state=FreshnessState.FRESH,
+                        ttl_seconds=86400,
+                        reference=str(resp.url)
+                    )
+                )
+            except Exception as e:
+                network_error = f"Malformed Overpass JSON response: {e}"
+        else:
+            network_error = err or "Overpass network call failed"
 
         # 3. Fallback to stale cache on network failure
         stale_data = self.cache.get("osm", cache_key, allow_stale=True)
         if stale_data is not None:
             logger.info("Using stale cached Overpass data for key %s", cache_key)
-            return [OSMFeature(**item) for item in stale_data]
+            features = [OSMFeature(**item) for item in stale_data]
+            return OverpassResult(
+                features=features,
+                status=OSMStatus.STALE_CACHE,
+                error_message=f"Live API failed ({network_error}); loaded stale cache",
+                is_cached=True,
+                is_stale=True,
+                source_url=self.api_url,
+                provenance=Provenance(
+                    provider="OpenStreetMap",
+                    product="Overpass_API",
+                    observed_at_utc=fetch_time,
+                    fetched_at_utc=fetch_time,
+                    freshness_state=FreshnessState.STALE,
+                    ttl_seconds=86400,
+                    reference=reference or cache_key
+                )
+            )
 
-        # 4. Return empty features on complete failure
-        return []
+        # 4. Return explicit provider failure - do not allow empty to masquerade as success
+        return OverpassResult(
+            features=[],
+            status=OSMStatus.PROVIDER_FAILURE,
+            error_message=network_error or "Overpass provider failed",
+            source_url=self.api_url,
+            provenance=Provenance(
+                provider="OpenStreetMap",
+                product="Overpass_API",
+                observed_at_utc=fetch_time,
+                fetched_at_utc=fetch_time,
+                freshness_state=FreshnessState.UNAVAILABLE,
+                ttl_seconds=0,
+                reference=reference or cache_key
+            )
+        )
+
+    def _execute_query(self, query: str, cache_key: str) -> List[OSMFeature]:
+        """Backward-compatible method returning list of features."""
+        res = self._execute_query_rich(query, cache_key)
+        return res.features
+
+    def query_radius(
+        self,
+        lat: float,
+        lon: float,
+        radius_meters: float = DEFAULT_SEARCH_RADIUS_METERS
+    ) -> OverpassResult:
+        """Fetch OSM features in circular radius, returning typed OverpassResult."""
+        try:
+            validate_coordinates(lat, lon)
+        except ValueError as e:
+            return OverpassResult(
+                features=[],
+                status=OSMStatus.UNAVAILABLE,
+                error_message=f"Invalid coordinates: {e}"
+            )
+
+        from services.api.enrichment.cache import generate_cache_key
+        cache_key = generate_cache_key("radius", lat=lat, lon=lon, radius=radius_meters)
+        query = build_overpass_radius_query(lat, lon, radius_meters, int(self.timeout))
+        return self._execute_query_rich(query, cache_key, reference=f"radius:{lat:.4f},{lon:.4f}:{radius_meters}m")
 
     def fetch_features_radius(
         self,
@@ -316,17 +451,33 @@ class OverpassClient:
         lon: float,
         radius_meters: float = DEFAULT_SEARCH_RADIUS_METERS
     ) -> List[OSMFeature]:
-        """Fetch OSM features in a circular radius around coordinates."""
+        """Fetch OSM features in circular radius (backward-compatible list return)."""
+        res = self.query_radius(lat, lon, radius_meters)
+        self._last_radius_result = res
+        return res.features
+
+    def query_bbox(
+        self,
+        south: float,
+        west: float,
+        north: float,
+        east: float
+    ) -> OverpassResult:
+        """Fetch OSM features within bounding box, returning typed OverpassResult."""
         try:
-            validate_coordinates(lat, lon)
+            validate_coordinates(south, west)
+            validate_coordinates(north, east)
         except ValueError as e:
-            logger.warning("Invalid coordinates for Overpass query: %s", e)
-            return []
+            return OverpassResult(
+                features=[],
+                status=OSMStatus.UNAVAILABLE,
+                error_message=f"Invalid bounding box: {e}"
+            )
 
         from services.api.enrichment.cache import generate_cache_key
-        cache_key = generate_cache_key("radius", lat=lat, lon=lon, radius=radius_meters)
-        query = build_overpass_radius_query(lat, lon, radius_meters, int(self.timeout))
-        return self._execute_query(query, cache_key)
+        cache_key = generate_cache_key("bbox", south=south, west=west, north=north, east=east)
+        query = build_overpass_bbox_query(south, west, north, east, int(self.timeout))
+        return self._execute_query_rich(query, cache_key, reference=f"bbox:{south:.4f},{west:.4f},{north:.4f},{east:.4f}")
 
     def fetch_features_bbox(
         self,
@@ -335,25 +486,19 @@ class OverpassClient:
         north: float,
         east: float
     ) -> List[OSMFeature]:
-        """Fetch OSM features within a bounding box (recommended for batch enrichment)."""
-        try:
-            validate_coordinates(south, west)
-            validate_coordinates(north, east)
-        except ValueError as e:
-            logger.warning("Invalid bounding box coordinates for Overpass: %s", e)
-            return []
-
-        from services.api.enrichment.cache import generate_cache_key
-        cache_key = generate_cache_key("bbox", south=south, west=west, north=north, east=east)
-        query = build_overpass_bbox_query(south, west, north, east, int(self.timeout))
-        return self._execute_query(query, cache_key)
+        """Fetch OSM features within bounding box (backward-compatible list return)."""
+        res = self.query_bbox(south, west, north, east)
+        self._last_bbox_result = res
+        return res.features
 
 
 def derive_geospatial_context(
     target_lat: float,
     target_lon: float,
     features: List[OSMFeature],
-    max_search_radius_meters: float = 10000.0
+    max_search_radius_meters: float = 10000.0,
+    source_status: Optional[str] = None,
+    asset_store: Optional[Any] = None
 ) -> Tuple[GeospatialContext, Dict[str, Any]]:
     """Synthesize a frozen GeospatialContext and metadata dict for a hotspot.
     
@@ -362,6 +507,8 @@ def derive_geospatial_context(
         target_lon: Hotspot longitude.
         features: Pre-fetched OSM features (e.g. from regional bbox query).
         max_search_radius_meters: Search horizon in meters.
+        source_status: Optional explicit status override ('successful_non_empty', 'stale_cache', etc.).
+        asset_store: Optional AssetStoreInterface instance for polygon containment checks.
         
     Returns:
         Tuple of (GeospatialContext, detailed_metrics_dict).
@@ -389,7 +536,8 @@ def derive_geospatial_context(
                 "nearby_industrial_count": 0,
                 "nearby_infrastructure_count": 0,
                 "nearby_settlement_count": 0,
-                "status": "unavailable"
+                "status": "unavailable",
+                "protected_area_geometry_status": "unavailable"
             }
         )
 
@@ -430,11 +578,36 @@ def derive_geospatial_context(
     # Evaluate Protected Area
     is_protected = False
     protected_name: Optional[str] = None
-    if nearest_prot is not None:
-        prot_feat, prot_dist = nearest_prot
-        if prot_dist <= 1500.0:  # Within 1.5km of park/reserve boundary
+    geom_status = "none"
+
+    # 1. First check local asset store polygon containment if store available
+    store = asset_store
+    if store is None:
+        try:
+            from services.api.geospatial.asset_store import GeoJSONAssetStore
+            store = GeoJSONAssetStore(auto_load=True)
+        except Exception:
+            store = None
+
+    if store is not None:
+        is_in_prot, prot_n, g_status = store.check_protected_area(target_lat, target_lon)
+        if is_in_prot:
             is_protected = True
+            protected_name = prot_n
+            geom_status = g_status
+        elif g_status == "degraded_centroid":
+            is_protected = False
+            protected_name = prot_n
+            geom_status = "degraded_centroid"
+
+    # 2. If not already verified inside polygon, inspect candidate protected features
+    if not is_protected and nearest_prot is not None:
+        prot_feat, prot_dist = nearest_prot
+        if prot_dist <= 1500.0:
+            # Centroid proximity without verified polygon boundary -> explicit degraded state
+            is_protected = False
             protected_name = prot_feat.get("name")
+            geom_status = "degraded_centroid"
 
     # Determine land cover estimate
     land_cover = "chaparral_scrubland"
@@ -472,13 +645,124 @@ def derive_geospatial_context(
         fuel_load_estimate=fuel_load
     )
 
+    # Correct status semantics: distinguish non-empty, empty, stale, provider failure
+    if source_status:
+        final_status = source_status
+    elif features:
+        final_status = OSMStatus.SUCCESS_NON_EMPTY.value
+    else:
+        final_status = OSMStatus.SUCCESS_EMPTY.value
+
     metadata = {
         "nearest_industrial_facility": nearest_ind_name,
         "distance_to_industrial_meters": dist_ind,
         "nearby_industrial_count": nearby_ind_count,
         "nearby_infrastructure_count": nearby_inf_count,
         "nearby_settlement_count": nearby_set_count,
-        "status": "available" if (features or not features) else "empty"
+        "status": final_status,
+        "protected_area_geometry_status": geom_status
     }
 
     return (context, metadata)
+
+
+def derive_geospatial_v2(
+    target_lat: float,
+    target_lon: float,
+    features: List[OSMFeature],
+    status: OSMStatus = OSMStatus.SUCCESS_NON_EMPTY,
+    observed_at_utc: Optional[str] = None,
+    provenance: Optional[Provenance] = None,
+    asset_store: Optional[Any] = None
+) -> GeospatialEnrichment:
+    """Construct canonical V2 GeospatialEnrichment with atomic EnrichmentDatum per attribute."""
+    context, meta = derive_geospatial_context(
+        target_lat=target_lat,
+        target_lon=target_lon,
+        features=features,
+        source_status=status.value,
+        asset_store=asset_store
+    )
+
+    obs_time = observed_at_utc or now_utc_iso()
+    fetch_time = now_utc_iso()
+    is_avail = status in (OSMStatus.SUCCESS_NON_EMPTY, OSMStatus.SUCCESS_EMPTY, OSMStatus.STALE_CACHE)
+    freshness = (
+        FreshnessState.STALE if status == OSMStatus.STALE_CACHE
+        else (FreshnessState.FRESH if is_avail else FreshnessState.UNAVAILABLE)
+    )
+    datum_status = "available" if is_avail else "unavailable"
+
+    prov = provenance or Provenance(
+        provider="OpenStreetMap",
+        product="Overpass_API",
+        observed_at_utc=obs_time,
+        fetched_at_utc=fetch_time,
+        freshness_state=freshness,
+        ttl_seconds=86400,
+        reference=f"lat={target_lat:.4f},lon={target_lon:.4f}"
+    )
+
+    # Handle protected area geometry status: if degraded_centroid, status='degraded'
+    geom_status = meta.get("protected_area_geometry_status", "none")
+    if geom_status == "verified_polygon":
+        prot_datum = EnrichmentDatum[bool](
+            value=context.is_protected_area,
+            status="available",
+            provenance=prov
+        )
+    elif geom_status == "degraded_centroid":
+        prot_datum = EnrichmentDatum[bool](
+            value=None,
+            status="degraded",
+            provenance=prov,
+            error_message="Centroid proximity only; exact boundary polygon unavailable"
+        )
+    else:
+        prot_datum = EnrichmentDatum[bool](
+            value=False if is_avail else None,
+            status=datum_status,
+            provenance=prov,
+            error_message=None if is_avail else "Geospatial telemetry unavailable"
+        )
+
+    return GeospatialEnrichment(
+        land_cover=EnrichmentDatum[str](
+            value=context.land_cover if is_avail else "unknown",
+            status=datum_status,
+            provenance=prov,
+            error_message=None if is_avail else "Geospatial telemetry unavailable"
+        ),
+        nearest_settlement=EnrichmentDatum[str](
+            value=context.nearest_settlement,
+            status=datum_status,
+            provenance=prov,
+            error_message=None if is_avail else "Settlement telemetry unavailable"
+        ),
+        distance_to_settlement_meters=EnrichmentDatum[float](
+            value=context.distance_to_settlement_meters,
+            status=datum_status,
+            provenance=prov,
+            error_message=None if is_avail else "Settlement telemetry unavailable"
+        ),
+        nearest_infrastructure=EnrichmentDatum[str](
+            value=context.nearest_infrastructure,
+            status=datum_status,
+            provenance=prov,
+            error_message=None if is_avail else "Infrastructure telemetry unavailable"
+        ),
+        distance_to_infrastructure_meters=EnrichmentDatum[float](
+            value=context.distance_to_infrastructure_meters,
+            status=datum_status,
+            provenance=prov,
+            error_message=None if is_avail else "Infrastructure telemetry unavailable"
+        ),
+        is_protected_area=prot_datum,
+        protected_area_name=EnrichmentDatum[str](
+            value=context.protected_area_name,
+            status="available" if context.protected_area_name else datum_status,
+            provenance=prov,
+            error_message=None
+        ) if context.protected_area_name else None
+    )
+

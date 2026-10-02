@@ -29,6 +29,10 @@ DEFAULT_WINDOW_30D = 30
 DEFAULT_WINDOW_90D = 90
 
 
+from services.api.schemas.v2.common import FreshnessState, Provenance, now_utc_iso
+from services.api.schemas.v2.enrichment import EnrichmentDatum, HistoricalEnrichment
+
+
 class HistoricalAnalysisResult(BaseModel):
     """Rich container for historical analysis metrics."""
     context: HistoricalContext
@@ -37,23 +41,119 @@ class HistoricalAnalysisResult(BaseModel):
     temporal_span_days: int = Field(default=0, ge=0, description="Span between first and last observation")
     total_detections_in_radius: int = Field(default=0, ge=0, description="Total satellite detections within radius")
     status: str = Field(default="computed", description="'computed', 'empty', or 'unavailable'")
+    provenance: Optional[Provenance] = None
+
+    def to_v2_enrichment(
+        self,
+        observed_at_utc: Optional[str] = None
+    ) -> HistoricalEnrichment:
+        """Convert analysis result into canonical V2 HistoricalEnrichment contract."""
+        obs_time = observed_at_utc or now_utc_iso()
+        fetch_time = now_utc_iso()
+
+        is_avail = self.status in ("computed", "empty")
+        freshness = FreshnessState.FRESH if is_avail else FreshnessState.UNAVAILABLE
+        datum_status = "available" if is_avail else "unavailable"
+
+        prov = self.provenance or Provenance(
+            provider="ThermalIntel_History",
+            product="FIRMS_Historical_Archive",
+            observed_at_utc=obs_time,
+            fetched_at_utc=fetch_time,
+            freshness_state=freshness,
+            ttl_seconds=86400,
+            reference=f"detections_in_radius={self.total_detections_in_radius}"
+        )
+
+        # Map internal pattern to V2 canonical pattern nomenclature
+        pattern_map = {
+            "known_industrial_stack": "industrial_flare",
+            "persistent_burn": "persistent_wildfire",
+            "agricultural_clearing": "agricultural_clearing",
+            "none": "none",
+        }
+        v2_pattern = pattern_map.get(self.context.recurrent_pattern or "none", "none")
+
+        return HistoricalEnrichment(
+            prior_detections_30d=EnrichmentDatum[int](
+                value=self.context.prior_detections_30d if is_avail else None,
+                status=datum_status,
+                provenance=prov,
+                error_message=None if is_avail else "Historical telemetry unavailable"
+            ),
+            prior_detections_90d=EnrichmentDatum[int](
+                value=self.context.prior_detections_90d if is_avail else None,
+                status=datum_status,
+                provenance=prov,
+                error_message=None if is_avail else "Historical telemetry unavailable"
+            ),
+            is_recurrent_site=EnrichmentDatum[bool](
+                value=self.context.is_recurrent_site if is_avail else None,
+                status=datum_status,
+                provenance=prov,
+                error_message=None if is_avail else "Historical telemetry unavailable"
+            ),
+            recurrent_pattern=EnrichmentDatum[str](
+                value=v2_pattern if is_avail else None,
+                status=datum_status,
+                provenance=prov,
+                error_message=None if is_avail else "Historical telemetry unavailable"
+            ),
+            recurrence_score=EnrichmentDatum[float](
+                value=self.context.detection_frequency_score if is_avail else None,
+                status=datum_status,
+                provenance=prov,
+                error_message=None if is_avail else "Historical telemetry unavailable"
+            )
+        )
 
 
 def parse_date(date_val: Union[str, datetime]) -> datetime:
-    """Parse a date string or object into a date datetime."""
+    """Parse a date string or object into a UTC-aware datetime."""
     if isinstance(date_val, datetime):
+        if date_val.tzinfo is None:
+            return date_val.replace(tzinfo=timezone.utc)
         return date_val
     clean_str = str(date_val).strip()
-    # Try YYYY-MM-DD
-    for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S"):
+    if not clean_str:
+        return datetime.now(timezone.utc)
+
+    # Supported explicit date and datetime formats
+    for fmt in (
+        "%Y-%m-%d",
+        "%Y%m%d",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y/%m/%d",
+    ):
         try:
-            return datetime.strptime(clean_str[:10], "%Y-%m-%d")
+            dt = datetime.strptime(clean_str, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
         except ValueError:
             pass
+
+    # Try ISO 8601 parsing
     try:
-        return datetime.fromisoformat(clean_str)
+        iso_str = clean_str.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(iso_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     except ValueError:
-        return datetime.now(timezone.utc)
+        pass
+
+    # Fallback to date portion if length >= 10
+    if len(clean_str) >= 10:
+        try:
+            dt = datetime.strptime(clean_str[:10], "%Y-%m-%d")
+            return dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+
+    return datetime.now(timezone.utc)
 
 
 class HistoricalRecurrenceAnalyzer:

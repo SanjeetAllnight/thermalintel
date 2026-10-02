@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
 
 from services.api.schemas.incident import GeospatialContext, HistoricalContext, WeatherContext
+from services.api.schemas.v2.enrichment import EnrichmentSnapshot
 
 
 class EnrichmentStatus(str, Enum):
@@ -26,6 +27,7 @@ class EnrichmentResult(BaseModel):
     - Open-Meteo hyperlocal atmospheric observations
     - Historical detection recurrence and persistence scoring
     - Subsystem telemetry availability status
+    - V2 Canonical EnrichmentSnapshot with atomic provenance per source
     """
     hotspot_id: str = Field(..., description="Target hotspot identifier")
     latitude: float = Field(..., ge=-90.0, le=90.0)
@@ -45,7 +47,8 @@ class EnrichmentResult(BaseModel):
         default_factory=lambda: {
             "osm": "unknown",
             "weather": "unknown",
-            "historical": "unknown"
+            "historical": "unknown",
+            "terrain": "unknown"
         },
         description="Source status breakdown (available, cached, unavailable, computed)"
     )
@@ -90,6 +93,12 @@ class EnrichmentResult(BaseModel):
         description="ISO 8601 UTC timestamp of enrichment generation"
     )
 
+    # V2 Canonical Snapshot with granular provenance
+    snapshot: Optional[EnrichmentSnapshot] = Field(
+        default=None,
+        description="Canonical V2 EnrichmentSnapshot with explicit audit lineage per datum"
+    )
+
     def to_incident_dict(self) -> Dict[str, Any]:
         """Convert into database-ready dictionary for incident_details table."""
         return {
@@ -118,3 +127,65 @@ class EnrichmentResult(BaseModel):
             "distance_to_infra_m": self.geospatial.distance_to_infrastructure_meters,
             "slope_degrees": self.geospatial.slope_degrees
         }
+
+    def to_v2_snapshot(self, target_type: str = "observation") -> EnrichmentSnapshot:
+        """Retrieve attached V2 snapshot or synthesize one from current contexts."""
+        if self.snapshot is not None:
+            return self.snapshot
+
+        from services.api.geospatial.overpass import derive_geospatial_v2, OSMStatus
+        from services.api.weather.open_meteo import WeatherResult, WeatherStatus
+        from services.api.geospatial.terrain import TerrainResult
+        from services.api.schemas.v2.common import now_utc_iso
+        import uuid
+
+        # Synthesize V2 blocks from available context
+        osm_status_val = self.sources_status.get("osm", "unavailable")
+        try:
+            osm_enum = OSMStatus(osm_status_val)
+        except ValueError:
+            osm_enum = OSMStatus.SUCCESS_NON_EMPTY if osm_status_val == "available" else OSMStatus.UNAVAILABLE
+
+        v2_geo = derive_geospatial_v2(
+            target_lat=self.latitude,
+            target_lon=self.longitude,
+            features=[],
+            status=osm_enum
+        )
+
+        w_status = WeatherStatus.AVAILABLE if self.sources_status.get("weather") in ("available", "cached") else WeatherStatus.UNAVAILABLE
+        w_res = WeatherResult(
+            context=self.weather,
+            status=w_status
+        )
+        v2_weather = w_res.to_v2_enrichment(self.latitude, self.longitude)
+
+        # Synthesize historical V2 block
+        from services.api.history.recurrence import HistoricalAnalysisResult
+        h_res = HistoricalAnalysisResult(
+            context=self.historical,
+            persistence_score=self.persistence_score,
+            repeated_activity=self.repeated_activity,
+            status=self.sources_status.get("historical", "computed")
+        )
+        v2_hist = h_res.to_v2_enrichment()
+
+        # Topographic terrain
+        t_res = TerrainResult(
+            elevation_meters=self.geospatial.elevation_meters,
+            slope_degrees=self.geospatial.slope_degrees,
+            fuel_load_estimate=self.geospatial.fuel_load_estimate or "unknown",
+            status="available" if self.geospatial.elevation_meters is not None else "unavailable"
+        )
+        v2_terrain = t_res.to_v2_enrichment()
+
+        return EnrichmentSnapshot(
+            snapshot_id=f"SNAP-{uuid.uuid4().hex[:12].upper()}",
+            target_id=self.hotspot_id,
+            target_type=target_type,
+            geospatial=v2_geo,
+            weather=v2_weather,
+            historical=v2_hist,
+            terrain=v2_terrain,
+            created_at_utc=now_utc_iso()
+        )

@@ -206,3 +206,115 @@ def test_derive_geospatial_context_invalid_coordinates():
     assert context.land_cover == "unknown"
     assert context.nearest_infrastructure is None
     assert metadata["status"] == "unavailable"
+
+
+def test_overpass_client_empty_success(tmp_path: Path):
+    """Successful Overpass query that returns empty elements returns SUCCESS_EMPTY status."""
+    cache = EnrichmentCache(cache_dir=tmp_path)
+    mock_http = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock(spec=httpx.Response)
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"version": 0.6, "elements": []}
+    mock_resp.url = "https://overpass-api.de/api/interpreter"
+    mock_http.post.return_value = mock_resp
+
+    from services.api.geospatial.overpass import OSMStatus
+
+    client = OverpassClient(cache=cache, http_client=mock_http)
+    result = client.query_radius(38.7421, -122.8105)
+
+    assert result.status == OSMStatus.SUCCESS_EMPTY
+    assert result.features == []
+    assert result.is_cached is False
+    assert result.provenance is not None
+    assert result.provenance.provider == "OpenStreetMap"
+    assert result.provenance.freshness_state.value == "fresh"
+
+
+def test_overpass_client_provider_failure_status(tmp_path: Path):
+    """When Overpass HTTP query fails and no cache exists, status is PROVIDER_FAILURE, not empty."""
+    cache = EnrichmentCache(cache_dir=tmp_path)
+    mock_http = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock(spec=httpx.Response)
+    mock_resp.status_code = 504
+    mock_resp.text = "Gateway Timeout"
+    mock_http.post.return_value = mock_resp
+
+    from services.api.geospatial.overpass import OSMStatus
+    from services.api.geospatial.rate_limiter import OverpassRateLimiter
+
+    limiter = OverpassRateLimiter(max_retries=1, min_spacing_seconds=0.01)
+    client = OverpassClient(cache=cache, http_client=mock_http, rate_limiter=limiter)
+    result = client.query_radius(38.7421, -122.8105)
+
+    assert result.status == OSMStatus.PROVIDER_FAILURE
+    assert result.features == []
+    assert "Server Error" in (result.error_message or "")
+    assert result.provenance is not None
+    assert result.provenance.freshness_state.value == "unavailable"
+
+
+def test_overpass_rate_limiter_retry_and_cooldown():
+    """OverpassRateLimiter performs bounded retry on 429 and enters temporary cooldown."""
+    from services.api.geospatial.rate_limiter import OverpassRateLimiter
+
+    limiter = OverpassRateLimiter(max_retries=2, min_spacing_seconds=0.01, backoff_factor=1.0)
+    call_count = 0
+
+    def _failing_call():
+        nonlocal call_count
+        call_count += 1
+        resp = MagicMock(spec=httpx.Response)
+        resp.status_code = 429
+        resp.headers = {"Retry-After": "0"}
+        return resp
+
+    resp, err = limiter.execute_with_retry(_failing_call)
+    assert resp is None
+    assert "Too Many Requests" in (err or "")
+    assert limiter.is_in_cooldown is True
+
+    # Immediate next query is blocked by cooldown without network attempt
+    resp2, err2 = limiter.execute_with_retry(_failing_call)
+    assert resp2 is None
+    assert "cooldown" in (err2 or "")
+
+
+def test_protected_area_polygon_vs_degraded_centroid():
+    """Verify that verified polygon containment vs centroid distance produces proper status."""
+    from services.api.geospatial.overpass import derive_geospatial_v2, OSMStatus
+    from services.api.geospatial.asset_store import GeoJSONAssetStore
+
+    store = GeoJSONAssetStore(auto_load=True)
+
+    # 1. Point strictly inside Boggs Mountain State Forest polygon: (38.7400, -122.8150)
+    context_in, meta_in = derive_geospatial_context(38.7400, -122.8150, [], asset_store=store)
+    assert context_in.is_protected_area is True
+    assert meta_in["protected_area_geometry_status"] == "verified_polygon"
+
+    v2_in = derive_geospatial_v2(38.7400, -122.8150, [], status=OSMStatus.SUCCESS_NON_EMPTY, asset_store=store)
+    assert v2_in.is_protected_area.value is True
+    assert v2_in.is_protected_area.status == "available"
+
+    # 2. Point 800m away from centroid of a protected feature that lacks polygon geometry
+    from services.api.geospatial.overpass import OSMFeature, FeatureCategory
+    point_only_feature = [
+        OSMFeature(
+            id="node/isolated-reserve",
+            name="Point Only Nature Sanctuary",
+            category=FeatureCategory.PROTECTED_AREA,
+            feature_type="nature_reserve",
+            latitude=35.0000,
+            longitude=-120.0000,
+            tags={"leisure": "nature_reserve"}
+        )
+    ]
+    # Query ~800m north: (35.0072, -120.0000)
+    context_pt, meta_pt = derive_geospatial_context(35.0072, -120.0000, point_only_feature, asset_store=None)
+    assert context_pt.is_protected_area is False  # Not claimed as verified containment
+    assert meta_pt["protected_area_geometry_status"] == "degraded_centroid"
+
+    v2_pt = derive_geospatial_v2(35.0072, -120.0000, point_only_feature, status=OSMStatus.SUCCESS_NON_EMPTY, asset_store=None)
+    assert v2_pt.is_protected_area.status == "degraded"
+    assert v2_pt.is_protected_area.value is None  # No fabricated containment
+    assert "Centroid proximity only" in (v2_pt.is_protected_area.error_message or "")
