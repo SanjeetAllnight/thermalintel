@@ -1,7 +1,7 @@
-"""Incident domain models and state tracking for ThermalIntel Phase 4.
+"""Incident domain models and state tracking for ThermalIntel Phase 4 & V2.
 
-Extends the frozen schema ecosystem with operational incident definitions
-and aggregation data structures.
+Extends the frozen schema ecosystem with operational incident definitions,
+aggregation data structures, and persistent V2 lifecycle models.
 """
 
 from enum import Enum
@@ -10,13 +10,24 @@ from pydantic import BaseModel, Field
 
 from services.api.schemas.common import RiskLevel, SourceType
 from services.api.schemas.hotspot import Hotspot
+from services.api.schemas.v2 import (
+    Incident,
+    IncidentObservation,
+    IncidentEvent,
+    IncidentStatus as IncidentStatusV2,
+    IncidentEventType,
+    Observation,
+    Assessment,
+)
 
 
 class IncidentStatus(str, Enum):
-    """Operational state of an incident."""
+    """Operational state of an incident (compatible with both V1 and V2 contracts)."""
     ACTIVE = "active"
     MONITORING = "monitoring"
+    CONTAINED = "contained"
     RESOLVED = "resolved"
+    CLOSED = "closed"
     UNKNOWN = "unknown"
 
 
@@ -50,3 +61,21 @@ class AggregatedIncident(BaseModel):
     # Operational workflow
     status: IncidentStatus = Field(default=IncidentStatus.ACTIVE, description="Current operational status")
     primary_hotspot: Optional[Hotspot] = Field(None, description="Full primary hotspot object")
+
+
+class CorrelationResult(BaseModel):
+    """Summary of correlation engine operations on an observation batch."""
+    created_incidents: List[Incident] = Field(default_factory=list, description="Newly instantiated persistent incidents")
+    updated_incidents: List[Incident] = Field(default_factory=list, description="Existing incidents updated with new observations")
+    merged_incidents: List[Incident] = Field(default_factory=list, description="Incidents absorbed during correlation merges")
+    associations_count: int = Field(default=0, description="Total new IncidentObservation links established")
+    events_emitted: List[IncidentEvent] = Field(default_factory=list, description="Append-only lifecycle events generated")
+
+
+class IncidentHistory(BaseModel):
+    """Complete chronological audit history and current state for a persistent incident."""
+    incident: Incident = Field(..., description="Canonical incident record")
+    observations: List[Observation] = Field(default_factory=list, description="Correlated remote sensing observations")
+    events: List[IncidentEvent] = Field(default_factory=list, description="Chronological timeline of lifecycle events")
+    current_assessment: Optional[Assessment] = Field(None, description="Active AI assessment if available")
+    enrichment: Dict[str, Any] = Field(default_factory=dict, description="Contextual enrichment snapshots")
