@@ -46,6 +46,7 @@ export function formatTimestamp(isoString?: string | null): string {
     const date = new Date(isoString);
     if (isNaN(date.getTime())) return isoString;
     return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -220,3 +221,140 @@ export function getAlertSeverityMeta(severity?: AlertSeverity | string) {
       };
   }
 }
+
+export type OperationalIncidentStatus = 'active' | 'monitoring' | 'contained' | 'resolved' | 'closed';
+
+/**
+ * Determine operational incident status from hotspot metadata or risk level
+ */
+export function getIncidentStatus(hotspot?: { risk_level?: RiskLevel | string; frp?: number; [key: string]: any } | null): OperationalIncidentStatus {
+  if (!hotspot) return 'monitoring';
+  if ((hotspot as any).status) return (hotspot as any).status as OperationalIncidentStatus;
+  const level = (hotspot.risk_level || 'low').toLowerCase();
+  if (level === 'critical') return 'active';
+  if (level === 'high') return 'monitoring';
+  if (level === 'medium') return 'monitoring';
+  return 'contained';
+}
+
+/**
+ * Status presentation metadata
+ */
+export function getIncidentStatusMeta(status: OperationalIncidentStatus) {
+  switch (status) {
+    case 'active':
+      return {
+        label: 'ACTIVE',
+        badgeBg: 'bg-rose-950/70 text-rose-300 border border-rose-800',
+        dotColor: 'bg-rose-400',
+        pulse: true,
+      };
+    case 'monitoring':
+      return {
+        label: 'MONITORING',
+        badgeBg: 'bg-amber-950/70 text-amber-300 border border-amber-800',
+        dotColor: 'bg-amber-400',
+        pulse: false,
+      };
+    case 'contained':
+      return {
+        label: 'CONTAINED',
+        badgeBg: 'bg-blue-950/70 text-blue-300 border border-blue-800',
+        dotColor: 'bg-blue-400',
+        pulse: false,
+      };
+    case 'resolved':
+      return {
+        label: 'RESOLVED',
+        badgeBg: 'bg-emerald-950/70 text-emerald-300 border border-emerald-800',
+        dotColor: 'bg-emerald-400',
+        pulse: false,
+      };
+    case 'closed':
+    default:
+      return {
+        label: 'CLOSED',
+        badgeBg: 'bg-slate-900 text-slate-400 border border-slate-800',
+        dotColor: 'bg-slate-500',
+        pulse: false,
+      };
+  }
+}
+
+/**
+ * Extract or derive important change indicator
+ */
+export function getIncidentChangeIndicator(hotspot: { frp: number; is_anomaly: boolean; risk_level: string; risk_score: number; [key: string]: any }): {
+  label: string;
+  type: 'anomaly' | 'surge' | 'escalation' | 'update' | 'stable';
+} {
+  if ((hotspot as any).change_indicator) {
+    return { label: (hotspot as any).change_indicator, type: 'update' };
+  }
+  if (hotspot.is_anomaly) {
+    return { label: 'Statistical Outlier (≥3σ)', type: 'anomaly' };
+  }
+  if (hotspot.frp >= 100) {
+    return { label: `Extreme FRP (${formatFrp(hotspot.frp)})`, type: 'surge' };
+  }
+  if (hotspot.risk_level === 'critical') {
+    return { label: 'Priority Escalation', type: 'escalation' };
+  }
+  if (hotspot.risk_score >= 50) {
+    return { label: 'Active Surveillance', type: 'update' };
+  }
+  return { label: 'Nominal Telemetry', type: 'stable' };
+}
+
+/**
+ * Freshness state badge styling
+ */
+export function getFreshnessMeta(state?: string) {
+  const norm = (state || 'fresh').toLowerCase();
+  switch (norm) {
+    case 'fresh':
+      return {
+        label: 'FRESH',
+        badgeBg: 'bg-emerald-950/60 text-emerald-300 border-emerald-800/80',
+        textColor: 'text-emerald-400',
+        dotColor: 'bg-emerald-400',
+      };
+    case 'cached':
+      return {
+        label: 'CACHED',
+        badgeBg: 'bg-amber-950/60 text-amber-300 border-amber-800/80',
+        textColor: 'text-amber-400',
+        dotColor: 'bg-amber-400',
+      };
+    case 'stale':
+      return {
+        label: 'STALE',
+        badgeBg: 'bg-rose-950/60 text-rose-300 border-rose-800/80',
+        textColor: 'text-rose-400',
+        dotColor: 'bg-rose-400',
+      };
+    case 'derived':
+      return {
+        label: 'DERIVED',
+        badgeBg: 'bg-purple-950/60 text-purple-300 border-purple-800/80',
+        textColor: 'text-purple-400',
+        dotColor: 'bg-purple-400',
+      };
+    case 'synthetic':
+      return {
+        label: 'SYNTHETIC',
+        badgeBg: 'bg-cyan-950/60 text-cyan-300 border-cyan-800/80',
+        textColor: 'text-cyan-400',
+        dotColor: 'bg-cyan-400',
+      };
+    case 'unavailable':
+    default:
+      return {
+        label: 'UNAVAILABLE',
+        badgeBg: 'bg-slate-900 text-slate-400 border-slate-800',
+        textColor: 'text-slate-400',
+        dotColor: 'bg-slate-500',
+      };
+  }
+}
+

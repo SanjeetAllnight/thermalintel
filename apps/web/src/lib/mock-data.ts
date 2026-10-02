@@ -444,6 +444,12 @@ export const mockIncidents: Record<string, IncidentDetail> = {
         predicted_source: 'wildfire',
         confidence: 0.95,
         probabilities: { wildfire: 0.95, prescribed_burn: 0.03, industrial: 0.01, urban: 0.01 },
+        feature_importance: {
+          fire_radiative_power: 0.40,
+          wind_speed: 0.30,
+          land_cover_fuel: 0.18,
+          humidity: 0.12,
+        },
       },
       anomaly: {
         is_anomaly: true,
@@ -823,6 +829,12 @@ mockHotspots.forEach((h) => {
           predicted_source: h.source_type,
           confidence: h.confidence === 'high' ? 0.92 : 0.82,
           probabilities: { [h.source_type]: 0.88, unknown: 0.12 },
+          feature_importance: h.source_type === 'agricultural' ? null : {
+            fire_radiative_power: 0.45,
+            land_cover_fuel: 0.25,
+            wind_speed: 0.2,
+            humidity: 0.1,
+          },
         },
         anomaly: {
           is_anomaly: h.is_anomaly,

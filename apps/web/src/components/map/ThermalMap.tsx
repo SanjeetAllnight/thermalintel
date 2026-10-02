@@ -144,26 +144,46 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
         halosLayerRef.current?.addLayer(halo);
       }
 
-      // 2. Custom Marker Icon
-      const markerSize = isSelected ? 28 : h.risk_level === 'critical' ? 22 : 18;
+      // 2. Custom Marker Icon with distinct severity symbols and high contrast
+      const markerSize = isSelected ? 30 : h.risk_level === 'critical' ? 24 : 18;
       const pulseHtml =
         h.risk_level === 'critical' || isSelected
           ? `<span class="absolute -inset-2 rounded-full ${
-              isSelected ? 'bg-cyan-400/40 animate-ping' : 'bg-red-500/40 animate-ping'
+              isSelected ? 'bg-cyan-400/50 motion-safe:animate-ping' : 'bg-red-500/40 motion-safe:animate-ping'
             }"></span>`
           : '';
+
+      // Non-color symbol inside marker
+      let symbol = '●';
+      let shapeClass = 'rounded-full';
+      if (h.risk_level === 'critical') {
+        symbol = '!';
+        shapeClass = 'rounded-full border-2 border-white ring-2 ring-red-600';
+      } else if (h.risk_level === 'high') {
+        symbol = '▲';
+        shapeClass = 'rounded-md border border-white/80';
+      } else if (h.risk_level === 'medium') {
+        symbol = '■';
+        shapeClass = 'rounded-sm border border-slate-900';
+      } else {
+        symbol = '–';
+        shapeClass = 'rounded-full border border-slate-900';
+      }
+
+      if (isSelected) {
+        symbol = '✛';
+        shapeClass = 'rounded-full border-2 border-cyan-300 ring-4 ring-cyan-500/70 shadow-lg shadow-cyan-500/50';
+      }
 
       const icon = L.divIcon({
         className: 'custom-thermal-marker',
         html: `
-          <div class="relative flex items-center justify-center cursor-pointer transition-transform hover:scale-125" style="width: ${markerSize}px; height: ${markerSize}px;">
+          <div class="relative flex items-center justify-center cursor-pointer transition-transform hover:scale-125 select-none" style="width: ${markerSize}px; height: ${markerSize}px;">
             ${pulseHtml}
-            <div class="w-full h-full rounded-full border-2 ${
-              isSelected ? 'border-cyan-300 ring-4 ring-cyan-500/50' : 'border-slate-900 shadow-md'
-            } flex items-center justify-center font-bold text-[9px] text-white" style="background-color: ${
-          meta.fillHex
+            <div class="w-full h-full ${shapeClass} flex items-center justify-center font-black font-mono text-[10px] text-white shadow-md" style="background-color: ${
+          isSelected ? '#06b6d4' : meta.fillHex
         };">
-              ${isSelected ? '★' : ''}
+              ${symbol}
             </div>
           </div>
         `,

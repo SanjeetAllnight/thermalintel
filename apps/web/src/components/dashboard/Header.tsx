@@ -1,14 +1,21 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { HealthResponse, DataMode } from '../../types/api';
+import { SystemMode, SourceHealthItem } from '../../types/system';
 import { AppDataMode } from '../../lib/data-provider';
-import { RefreshCw, Radio, Satellite, ShieldCheck, Flame } from 'lucide-react';
+import { SystemModeBadge } from '../system/SystemModeBadge';
+import { SourceHealthCard } from '../system/SourceHealthCard';
+import { RefreshCw, Radio, Satellite, ShieldCheck, Flame, Activity, X } from 'lucide-react';
 
 interface HeaderProps {
   health: HealthResponse | null;
   dataMode: DataMode;
+  systemMode: SystemMode;
   modePreference: AppDataMode;
+  sourceHealthList: SourceHealthItem[];
+  cacheAgeSeconds?: number;
+  isStale?: boolean;
   onModeChange: (mode: AppDataMode) => void;
   onRefresh: () => void;
   refreshing: boolean;
@@ -20,7 +27,11 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   health,
   dataMode,
+  systemMode,
   modePreference,
+  sourceHealthList,
+  cacheAgeSeconds = 0,
+  isStale = false,
   onModeChange,
   onRefresh,
   refreshing,
@@ -28,22 +39,22 @@ export const Header: React.FC<HeaderProps> = ({
   onRegionChange,
   lastUpdated,
 }) => {
-  const isLive = dataMode === 'live';
+  const [showHealthModal, setShowHealthModal] = useState(false);
 
   return (
     <header className="border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-md px-4 lg:px-6 py-2.5 sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 shadow-lg shadow-black/40">
       {/* Brand & Mission Title */}
       <div className="flex items-center space-x-3.5">
         <div className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 via-orange-600 to-red-600 shadow-md shadow-red-500/25 border border-red-400/30">
-          <Flame className="w-5 h-5 text-white" />
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-950 animate-ping" />
+          <Flame className="w-5 h-5 text-white" aria-hidden="true" />
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-950 motion-safe:animate-ping" />
         </div>
         <div>
           <div className="flex items-center space-x-2">
             <span className="text-base font-black tracking-wider uppercase text-white font-mono">
               Thermal<span className="text-red-500">Intel</span>
             </span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/80">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/80 font-bold">
               OPERATIONAL COMMAND
             </span>
           </div>
@@ -54,9 +65,11 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Center Controls: Monitoring Region Selector */}
-      <div className="hidden xl:flex items-center space-x-2 px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-xs">
-        <Satellite className="w-3.5 h-3.5 text-cyan-400" />
-        <span className="text-slate-400 font-medium">Monitoring Zone:</span>
+      <div className="hidden xl:flex items-center space-x-2 px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-xs font-mono">
+        <Satellite className="w-3.5 h-3.5 text-cyan-400" aria-hidden="true" />
+        <label htmlFor="select-monitoring-region" className="text-slate-400 font-medium">
+          Monitoring Zone:
+        </label>
         <select
           id="select-monitoring-region"
           value={selectedRegion}
@@ -73,28 +86,30 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls: Telemetry Mode, System Health & Sync Action */}
       <div className="flex items-center space-x-2.5 sm:space-x-3">
-        {/* Live vs Demo Mode Toggle Badge */}
+        {/* System Mode Preference Switcher (Auto / Demo / Replay) */}
         <div className="flex items-center rounded-lg bg-slate-900 p-0.5 border border-slate-800 text-xs font-mono">
           <button
             type="button"
+            id="btn-mode-auto"
             onClick={() => onModeChange('auto')}
             title="Auto-detect API or fallback to local demo data"
             className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md transition-all ${
               modePreference === 'auto'
-                ? 'bg-slate-800 text-white shadow-sm'
+                ? 'bg-slate-800 text-white shadow-sm font-bold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Radio className="w-3 h-3 text-cyan-400" />
+            <Radio className="w-3 h-3 text-cyan-400" aria-hidden="true" />
             <span className="text-[11px]">Auto</span>
           </button>
           <button
             type="button"
+            id="btn-mode-demo"
             onClick={() => onModeChange('demo')}
             title="Force deterministic local demo simulation"
             className={`flex items-center space-x-1 px-2.5 py-1 rounded-md transition-all ${
               modePreference === 'demo'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm font-bold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -103,38 +118,25 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Data Mode Indicator Badge */}
-        <div
-          id="data-mode-badge"
-          className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg border text-xs font-mono ${
-            isLive
-              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
-              : 'bg-amber-950/40 border-amber-500/40 text-amber-300'
-          }`}
-          title={isLive ? 'Live API Telemetry Connected' : 'Simulated Deterministic Dataset Active'}
-        >
-          <span
-            className={`w-2 h-2 rounded-full ${
-              isLive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-            }`}
-          />
-          <span className="font-bold tracking-wider">{isLive ? 'LIVE' : 'DEMO'}</span>
-        </div>
+        {/* Persistent System Mode Indicator Badge (Requirement 7) */}
+        <SystemModeBadge
+          mode={systemMode}
+          cacheAgeSeconds={cacheAgeSeconds}
+          isStale={isStale}
+        />
 
-        {/* Backend Connectivity Status */}
-        <div className="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-xs">
-          <ShieldCheck
-            className={`w-3.5 h-3.5 ${
-              health?.status === 'ok' ? 'text-emerald-400' : 'text-amber-400'
-            }`}
-          />
-          <span className="text-slate-400 text-[11px]">
-            API:{' '}
-            <strong className="text-slate-200 font-mono">
-              {health?.status === 'ok' ? 'Online' : 'Fallback'}
-            </strong>
-          </span>
-        </div>
+        {/* Source Health Button Trigger (Requirement 8) */}
+        <button
+          type="button"
+          id="btn-source-health-modal"
+          onClick={() => setShowHealthModal(!showHealthModal)}
+          className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 font-mono transition-colors"
+          title="Inspect Telemetry Ingestion Source Health"
+          aria-expanded={showHealthModal}
+        >
+          <Activity className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="hidden md:inline">Sources</span>
+        </button>
 
         {/* Sync Telemetry Button */}
         <button
@@ -149,6 +151,23 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="sm:hidden">{refreshing ? '...' : 'Sync'}</span>
         </button>
       </div>
+
+      {/* Source Health Modal Dropdown */}
+      {showHealthModal && (
+        <div className="absolute top-full right-4 mt-2 z-50 w-80 sm:w-96 shadow-2xl">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowHealthModal(false)}
+              className="absolute top-3 right-3 text-slate-400 hover:text-white p-1 z-10"
+              aria-label="Close Source Health Panel"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <SourceHealthCard sources={sourceHealthList} />
+          </div>
+        </div>
+      )}
     </header>
   );
 };
