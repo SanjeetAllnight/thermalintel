@@ -1,4 +1,4 @@
-"""Integration adapters and provider protocols for Phase 4 Incidents.
+"""Integration adapters and provider protocols for Phase 4 Incidents & V2 Engine.
 
 Provides clean decoupled abstractions so the IncidentService can consume:
 - Hotspots (Agent 1)
@@ -21,6 +21,7 @@ from services.api.schemas.incident import (
 from services.api.schemas.intelligence import IntelligenceResult
 from services.api.schemas.common import DataMode, RiskLevel, SourceType
 from services.api.schemas.v2 import row_to_hotspot_canonical
+from services.api.incidents.repository import IncidentRepository, InMemoryIncidentRepository
 
 
 class HotspotProviderProtocol(Protocol):
@@ -54,11 +55,12 @@ class IntelligenceProviderProtocol(Protocol):
 
 
 class SQLiteIncidentAdapter:
-    """SQLite-backed adapter reading from the established Phase 0 tables."""
+    """SQLite-backed adapter reading from established database tables."""
 
     def __init__(self, connection_factory):
         """Initialize with a callable returning an open sqlite3.Connection with Row factory."""
         self.connection_factory = connection_factory
+        self.repository = IncidentRepository(connection_factory=connection_factory)
 
     def get_hotspot_by_id(self, hotspot_id: str) -> Optional[Hotspot]:
         with self.connection_factory() as conn:
@@ -128,6 +130,7 @@ class InMemoryIncidentAdapter:
         self.hotspots: Dict[str, Hotspot] = {}
         self.details: Dict[str, Dict[str, Any]] = {}
         self.data_mode: DataMode = DataMode.DEMO
+        self.repository = InMemoryIncidentRepository()
 
     def add_hotspot(self, hotspot: Hotspot):
         self.hotspots[hotspot.id] = hotspot
