@@ -20,6 +20,7 @@ from services.api.schemas.incident import (
 )
 from services.api.schemas.intelligence import IntelligenceResult
 from services.api.schemas.common import DataMode, RiskLevel, SourceType
+from services.api.schemas.v2 import row_to_hotspot_canonical
 
 
 class HotspotProviderProtocol(Protocol):
@@ -117,31 +118,7 @@ class SQLiteIncidentAdapter:
 
     @staticmethod
     def _row_to_hotspot(r: sqlite3.Row) -> Hotspot:
-        return Hotspot(
-            id=r["id"],
-            latitude=r["latitude"],
-            longitude=r["longitude"],
-            brightness=r["brightness"],
-            scan=r["scan"] if "scan" in r.keys() and r["scan"] is not None else 0.375,
-            track=r["track"] if "track" in r.keys() and r["track"] is not None else 0.375,
-            acq_date=r["acq_date"],
-            acq_time=r["acq_time"],
-            satellite=r["satellite"],
-            instrument=r["instrument"] if "instrument" in r.keys() and r["instrument"] else "VIIRS",
-            confidence=r["confidence"],
-            version=r["version"] if "version" in r.keys() and r["version"] else "2.0NRT",
-            bright_t31=r["bright_t31"] if "bright_t31" in r.keys() else None,
-            frp=r["frp"],
-            daynight=r["daynight"],
-            source_type=SourceType(r["source_type"]),
-            risk_score=r["risk_score"],
-            risk_level=RiskLevel(r["risk_level"]),
-            is_anomaly=bool(r["is_anomaly"]),
-            cluster_id=r["cluster_id"] if "cluster_id" in r.keys() else None,
-            cluster_size=r["cluster_size"] if "cluster_size" in r.keys() and r["cluster_size"] else 1,
-            nearest_place=r["nearest_place"] if "nearest_place" in r.keys() else None,
-            last_updated=r["last_updated"],
-        )
+        return row_to_hotspot_canonical(r)
 
 
 class InMemoryIncidentAdapter:

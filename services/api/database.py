@@ -17,6 +17,8 @@ SAMPLE_HOTSPOTS_PATH = BASE_DIR / "data" / "sample" / "sample_hotspots.json"
 SAMPLE_INCIDENTS_PATH = BASE_DIR / "data" / "sample" / "sample_incidents.json"
 SAMPLE_ALERTS_PATH = BASE_DIR / "data" / "sample" / "sample_alerts.json"
 
+from services.api.migrations import run_migrations
+
 DB_PATH = os.getenv("DATABASE_PATH", str(DEFAULT_DB_PATH))
 
 
@@ -27,77 +29,8 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db():
-    """Create database tables if they do not exist."""
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS hotspots (
-                id TEXT PRIMARY KEY,
-                latitude REAL NOT NULL,
-                longitude REAL NOT NULL,
-                brightness REAL NOT NULL,
-                scan REAL,
-                track REAL,
-                acq_date TEXT NOT NULL,
-                acq_time TEXT NOT NULL,
-                satellite TEXT NOT NULL,
-                instrument TEXT DEFAULT 'VIIRS',
-                confidence TEXT NOT NULL,
-                version TEXT,
-                bright_t31 REAL,
-                frp REAL NOT NULL,
-                daynight TEXT NOT NULL,
-                source_type TEXT NOT NULL,
-                risk_score REAL NOT NULL,
-                risk_level TEXT NOT NULL,
-                is_anomaly INTEGER DEFAULT 0,
-                cluster_id TEXT,
-                cluster_size INTEGER DEFAULT 1,
-                nearest_place TEXT,
-                last_updated TEXT NOT NULL,
-                data_mode TEXT DEFAULT 'demo'
-            )
-        """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS incident_details (
-                hotspot_id TEXT PRIMARY KEY,
-                geospatial_json TEXT NOT NULL,
-                weather_json TEXT NOT NULL,
-                historical_json TEXT NOT NULL,
-                intelligence_json TEXT NOT NULL,
-                timeline_json TEXT NOT NULL,
-                FOREIGN KEY (hotspot_id) REFERENCES hotspots(id)
-            )
-        """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS alerts (
-                id TEXT PRIMARY KEY,
-                hotspot_id TEXT NOT NULL,
-                severity TEXT NOT NULL,
-                title TEXT NOT NULL,
-                message TEXT NOT NULL,
-                risk_score REAL NOT NULL,
-                location_name TEXT NOT NULL,
-                latitude REAL NOT NULL,
-                longitude REAL NOT NULL,
-                timestamp TEXT NOT NULL,
-                is_acknowledged INTEGER DEFAULT 0,
-                recommended_action TEXT NOT NULL,
-                tags_json TEXT,
-                FOREIGN KEY (hotspot_id) REFERENCES hotspots(id)
-            )
-        """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS system_meta (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-        """)
-
-        conn.commit()
+    """Initialize database and apply pending migrations to ensure canonical schema."""
+    run_migrations(DB_PATH)
 
 
 def seed_if_empty():
