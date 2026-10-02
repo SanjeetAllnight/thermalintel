@@ -1,0 +1,55 @@
+# Git and CI/CD
+.git
+.gitignore
+.github
+
+# Environment files & Secrets
+.env
+.env.*
+*.env
+*.env.local
+!.env.example
+!apps/web/.env.example
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node.js & Next.js build artifacts
+node_modules/
+apps/web/node_modules/
+apps/web/.next/
+apps/web/out/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+
+# Application State & Local Caches (Must not be baked into images)
+*.db
+*.db-journal
+data/cache/*
+!data/cache/.gitkeep
+!data/cache/README.md
+data/raw/*
+!data/raw/.gitkeep
+data/quarantine/*
+!data/quarantine/.gitkeep
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
