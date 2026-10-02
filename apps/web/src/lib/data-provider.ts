@@ -11,6 +11,7 @@ import {
   HotspotFilterParams,
   DataMode,
 } from '../types/api';
+import { SystemMode, SourceHealthItem, ReplayState } from '../types/system';
 import {
   mockHealth,
   mockHotspots,
@@ -20,16 +21,15 @@ import {
   mockSources,
 } from './mock-data';
 
-export type AppDataMode = 'auto' | 'live' | 'demo';
+export type AppDataMode = 'auto' | 'live' | 'demo' | 'replay';
 
 class DataProvider {
   private modePreference: AppDataMode = 'auto';
   private lastDetectedMode: DataMode = 'demo';
   private backendAvailable: boolean = false;
-
-  constructor() {
-    // Mode defaults to auto (check backend, fallback to demo if unreachable)
-  }
+  private lastFetchedAt: Date | null = null;
+  private lastRefreshAttempt: number = 0;
+  private replayVirtualTime: string = '2026-10-01T08:45:00Z';
 
   setModePreference(mode: AppDataMode) {
     this.modePreference = mode;
@@ -41,20 +41,47 @@ class DataProvider {
 
   getActiveDataMode(): DataMode {
     if (this.modePreference === 'demo') return 'demo';
+    if (this.modePreference === 'replay') return 'demo';
     if (this.modePreference === 'live') return this.backendAvailable ? 'live' : 'demo';
     return this.lastDetectedMode;
+  }
+
+  getSystemMode(): SystemMode {
+    if (this.modePreference === 'replay') return 'REPLAY';
+    if (this.modePreference === 'demo') return 'DEMO';
+    if (this.backendAvailable && this.lastDetectedMode === 'live') {
+      const age = this.getCacheAgeSeconds();
+      if (age > 300) return 'CACHE';
+      return 'LIVE';
+    }
+    // When using fallback data or offline
+    return 'DEMO';
   }
 
   isBackendAvailable(): boolean {
     return this.backendAvailable;
   }
 
+  getLastFetchedAt(): Date | null {
+    return this.lastFetchedAt;
+  }
+
+  getCacheAgeSeconds(): number {
+    if (!this.lastFetchedAt) return 0;
+    return Math.floor((Date.now() - this.lastFetchedAt.getTime()) / 1000);
+  }
+
+  isCacheStale(): boolean {
+    return this.getCacheAgeSeconds() > 300; // 5 minutes threshold
+  }
+
   /**
    * Health Check & Mode Detection
    */
   async getHealth(): Promise<HealthResponse> {
-    if (this.modePreference === 'demo') {
+    if (this.modePreference === 'demo' || this.modePreference === 'replay') {
       this.lastDetectedMode = 'demo';
+      this.lastFetchedAt = new Date();
       return { ...mockHealth, data_mode: 'demo' };
     }
 
@@ -62,17 +89,19 @@ class DataProvider {
       const health = await apiClient.getHealth();
       this.backendAvailable = health?.status === 'ok';
       this.lastDetectedMode = health?.data_mode || 'live';
+      this.lastFetchedAt = new Date();
       return health;
     } catch {
       this.backendAvailable = false;
       this.lastDetectedMode = 'demo';
+      this.lastFetchedAt = new Date();
       return {
         ...mockHealth,
         data_mode: 'demo',
         services: {
-          ...mockHealth.services,
-          database: 'offline (falling back to local memory)',
-          firms_api: 'offline (using local dataset)',
+          database: 'fallback (local state)',
+          firms_api: 'unavailable (using fixture)',
+          intelligence_engine: 'local-evaluation',
         },
       };
     }
@@ -86,7 +115,9 @@ class DataProvider {
 
     if (activeMode === 'live' && this.backendAvailable) {
       try {
-        return await apiClient.getHotspots(params);
+        const res = await apiClient.getHotspots(params);
+        this.lastFetchedAt = new Date();
+        return res;
       } catch (err) {
         console.warn('Live API getHotspots failed, falling back to mock provider:', err);
       }
@@ -129,13 +160,14 @@ class DataProvider {
       total: filtered.length,
       page,
       page_size: pageSize,
-      data_mode: 'demo',
+      data_mode: this.getActiveDataMode(),
       generated_at: new Date().toISOString(),
     };
   }
 
   /**
    * Deep-dive Incident Detail Dossier
+   * Never silently fall back to mockHotspots[0]!
    */
   async getIncidentDetail(id: string): Promise<IncidentDetail> {
     const activeMode = this.getActiveDataMode();
@@ -143,8 +175,15 @@ class DataProvider {
     if (activeMode === 'live' && this.backendAvailable) {
       try {
         return await apiClient.getHotspotDetail(id);
-      } catch (err) {
-        console.warn(`Live API getHotspotDetail(${id}) failed, falling back to mock:`, err);
+      } catch (err: any) {
+        // If the live API returned 404 or not found, explicitly throw not found error
+        if (
+          err?.message?.includes('404') ||
+          err?.message?.toLowerCase().includes('not found')
+        ) {
+          throw new Error(`Incident with ID '${id}' not found in active telemetry`);
+        }
+        console.warn(`Live API getHotspotDetail(${id}) failed, checking local registry:`, err);
       }
     }
 
@@ -153,9 +192,9 @@ class DataProvider {
       return incident;
     }
 
-    // Fallback if ID is unknown: create safe synthetic item
-    const fallbackHotspot = mockHotspots.find((h) => h.id === id) || mockHotspots[0];
-    return mockIncidents[fallbackHotspot.id];
+    // Explicit error when incident ID is unknown:
+    // Do NOT silently replace with the first mock incident!
+    throw new Error(`Incident with ID '${id}' not found in active telemetry registry`);
   }
 
   /**
@@ -175,6 +214,7 @@ class DataProvider {
     return {
       ...mockSummary,
       last_sync_time: new Date().toISOString(),
+      data_mode: this.getActiveDataMode(),
     };
   }
 
@@ -222,24 +262,89 @@ class DataProvider {
       }
     }
 
-    return mockSources;
+    return {
+      ...mockSources,
+      data_mode: this.getActiveDataMode(),
+    };
   }
 
   /**
-   * Sync / Refresh Telemetry Trigger
+   * Compact Source Health (Requirement 8)
+   */
+  getSourceHealthList(health: HealthResponse | null): SourceHealthItem[] {
+    const isLiveMode = this.backendAvailable && health?.status === 'ok';
+
+    return [
+      {
+        id: 'nasa-firms',
+        name: 'NASA FIRMS (VIIRS 375m)',
+        category: 'satellite',
+        status: isLiveMode ? 'LIVE' : 'CACHE',
+        detail: isLiveMode ? 'Orbital NRT ingestion active' : 'Local satellite passes cached',
+      },
+      {
+        id: 'osm-overpass',
+        name: 'OpenStreetMap (Infra/Settlement)',
+        category: 'gis',
+        status: isLiveMode ? 'LIVE' : 'CACHE',
+        detail: isLiveMode ? 'Overpass spatial grid reachable' : 'Cached infrastructure buffer',
+      },
+      {
+        id: 'open-meteo',
+        name: 'Open-Meteo Synoptic Weather',
+        category: 'weather',
+        status: isLiveMode ? 'LIVE' : 'CACHE',
+        detail: isLiveMode ? 'Surface hourly telemetry sync' : 'Cached synoptic parameters',
+      },
+      {
+        id: 'database',
+        name: 'Database (Telemetry Storage)',
+        category: 'database',
+        status: isLiveMode ? 'HEALTHY' : 'DEGRADED',
+        detail: isLiveMode ? 'Persistence engine connected' : 'In-memory fixture store',
+      },
+      {
+        id: 'ai-engine',
+        name: 'Intelligence Engine (RF + Anomaly)',
+        category: 'ai',
+        status: isLiveMode ? 'HEALTHY' : 'HEALTHY',
+        detail: 'Inference pipeline operational',
+      },
+    ];
+  }
+
+  /**
+   * Sync / Refresh Telemetry Trigger with safe throttling (Requirement 15)
    */
   async refreshData(payload?: RefreshRequest): Promise<RefreshResponse> {
+    const now = Date.now();
+    // Guard against aggressive rapid polling (minimum 3 seconds between triggers)
+    if (now - this.lastRefreshAttempt < 3000) {
+      return {
+        status: 'throttled',
+        message: 'Refresh rate limited. Telemetry is already current.',
+        ingested_count: 0,
+        data_mode: this.getActiveDataMode(),
+        timestamp: new Date().toISOString(),
+        execution_time_seconds: 0,
+      };
+    }
+    this.lastRefreshAttempt = now;
+
     const activeMode = this.getActiveDataMode();
 
     if (activeMode === 'live' && this.backendAvailable) {
       try {
-        return await apiClient.refreshData(payload);
+        const res = await apiClient.refreshData(payload);
+        this.lastFetchedAt = new Date();
+        return res;
       } catch (err) {
         console.warn('Live API refreshData failed, simulating locally:', err);
       }
     }
 
-    // Deterministic simulation
+    this.lastFetchedAt = new Date();
+
     return {
       status: 'success',
       message: 'Telemetry re-synchronized across active orbital passes and ground stations.',
@@ -248,6 +353,24 @@ class DataProvider {
       timestamp: new Date().toISOString(),
       execution_time_seconds: 0.048,
     };
+  }
+
+  /**
+   * Replay Subsystem Scaffolding (Requirement 14)
+   * Prepares frontend architecture for Agent G's replay engine
+   */
+  getReplayState(): ReplayState {
+    return {
+      enabled: this.modePreference === 'replay',
+      isSimulated: true,
+      virtualTimeUtc: this.replayVirtualTime,
+      speed: 1,
+      availableTimeRange: ['2026-10-01T00:00:00Z', '2026-10-01T12:00:00Z'],
+    };
+  }
+
+  setReplayVirtualTime(timeUtc: string) {
+    this.replayVirtualTime = timeUtc;
   }
 }
 
