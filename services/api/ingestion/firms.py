@@ -47,6 +47,12 @@ class FirmsClient:
         target_area = area or self.config.default_area
         return f"{base}/country/csv/{key}/{source}/{target_area}/{days}"
 
+    def _mask_key(self, text: str) -> str:
+        """Sanitize text by redacting the FIRMS API key if present."""
+        if self.config.firms_map_key and self.config.firms_map_key in text:
+            return text.replace(self.config.firms_map_key, "***KEY***")
+        return text
+
     def fetch_recent_csv(
         self,
         source: Optional[str] = None,
@@ -67,7 +73,7 @@ class FirmsClient:
             return None
 
         # Mask key in logs for security
-        masked_url = url.replace(self.config.firms_map_key, "***KEY***")
+        masked_url = self._mask_key(url)
         logger.info(f"Querying NASA FIRMS API: {masked_url}")
 
         try:
@@ -75,7 +81,7 @@ class FirmsClient:
                 response = client.get(url)
                 if response.status_code != 200:
                     logger.warning(
-                        f"NASA FIRMS returned HTTP {response.status_code}: {response.text[:200]}"
+                        f"NASA FIRMS returned HTTP {response.status_code}: {self._mask_key(response.text[:200])}"
                     )
                     return None
 
@@ -87,7 +93,7 @@ class FirmsClient:
                 # Check if FIRMS returned an error string in body instead of CSV
                 first_line = text.strip().splitlines()[0].lower()
                 if "error" in first_line or "invalid" in first_line or "html" in first_line:
-                    logger.warning(f"NASA FIRMS returned API error message: {first_line}")
+                    logger.warning(f"NASA FIRMS returned API error message: {self._mask_key(first_line)}")
                     return None
 
                 return text
@@ -96,10 +102,10 @@ class FirmsClient:
             logger.warning(f"NASA FIRMS API request timed out after {self.config.timeout_seconds}s.")
             return None
         except httpx.RequestError as e:
-            logger.warning(f"NASA FIRMS API network request error: {e}")
+            logger.warning(f"NASA FIRMS API network request error: {self._mask_key(str(e))}")
             return None
         except Exception as e:
-            logger.warning(f"Unexpected error querying NASA FIRMS API: {e}")
+            logger.warning(f"Unexpected error querying NASA FIRMS API: {self._mask_key(str(e))}")
             return None
 
     def fetch_and_normalize(

@@ -20,8 +20,9 @@ Integration wiring:
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from services.api.security import verify_admin_key
 from services.api.schemas import (
     HealthResponse,
     HotspotsResponse,
@@ -188,9 +189,16 @@ def get_sources():
     return summary_service.get_sources()
 
 
-@router.post("/refresh", response_model=RefreshResponse)
+@router.post(
+    "/refresh",
+    response_model=RefreshResponse,
+    dependencies=[Depends(verify_admin_key)],
+)
 def trigger_refresh(req: Optional[RefreshRequest] = None):
-    """Trigger data synchronization from NASA FIRMS or reload sample dataset."""
+    """Trigger data synchronization from NASA FIRMS or reload sample dataset.
+    
+    Protected mutation endpoint: requires X-API-Key header when ADMIN_API_KEY is configured.
+    """
     seed_if_empty()
     data_service = _make_data_service()
     force = req.force_sample if req else False

@@ -1,0 +1,13 @@
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "data_mode": "demo",
+  "timestamp": "2026-10-02T15:56:58.354635+00:00",
+  "services": {
+    "database": "connected",
+    "firms_api": "ready",
+    "intelligence_engine": "online",
+    "enrichment_engine": "ready",
+    "incident_layer": "ready"
+  }
+}

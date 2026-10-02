@@ -1,0 +1,65 @@
+{
+  "items": [
+    {
+      "id": "ALT-20261001-001",
+      "hotspot_id": "VIIRS-SNPP-20261001-001",
+      "severity": "critical",
+      "title": "Rapid Convective Flare & Settlement Threat - Sonoma Basin",
+      "message": "FRP peaked at 142.8 MW within 1.2km of Cobb settlement. High wind gusts (58 km/h NE) creating extreme spotting hazard.",
+      "risk_score": 92.5,
+      "location_name": "Geysers Basin, Sonoma County, CA",
+      "latitude": 38.7421,
+      "longitude": -122.8105,
+      "timestamp": "2026-10-01T08:50:00Z",
+      "is_acknowledged": false,
+      "recommended_action": "Trigger emergency zone alert; coordinate structural defense with CalFire Unit Sonoma-Lake-Napa.",
+      "tags": [
+        "wildfire",
+        "high_wind",
+        "settlement_proximity",
+        "critical_frp"
+      ]
+    },
+    {
+      "id": "ALT-20261001-002",
+      "hotspot_id": "VIIRS-SNPP-20261001-006",
+      "severity": "critical",
+      "title": "Uncontained Canopy Fire - Angeles National Forest",
+      "message": "Thermal anomaly 76.5 MW detected in steep chaparral terrain with low humidity (18%). Potential rapid upslope run.",
+      "risk_score": 79.2,
+      "location_name": "Angeles National Forest Canyon, CA",
+      "latitude": 34.1852,
+      "longitude": -118.1528,
+      "timestamp": "2026-10-01T08:55:00Z",
+      "is_acknowledged": false,
+      "recommended_action": "Deploy aerial reconnaissance to verify ignition perimeter and trail evacuation status.",
+      "tags": [
+        "wildfire",
+        "forest_reserve",
+        "steep_slope"
+      ]
+    },
+    {
+      "id": "ALT-20261001-003",
+      "hotspot_id": "VIIRS-NOAA20-20261001-010",
+      "severity": "warning",
+      "title": "Elevated Effusive Thermal Surge - Halema'uma'u",
+      "message": "High radiant power (165.0 MW) detected over volcanic caldera. No residential threat; aviation plume advisory active.",
+      "risk_score": 62.0,
+      "location_name": "Halema'uma'u Crater, Hawaii Volcanoes National Park, HI",
+      "latitude": 19.4215,
+      "longitude": -155.2871,
+      "timestamp": "2026-10-01T10:15:00Z",
+      "is_acknowledged": true,
+      "recommended_action": "Cross-reference USGS Hawaiian Volcano Observatory tiltmeter telemetry.",
+      "tags": [
+        "volcanic",
+        "plume_warning",
+        "remote"
+      ]
+    }
+  ],
+  "total": 3,
+  "unread_count": 2,
+  "generated_at": "2026-10-02T15:56:58.370067+00:00"
+}

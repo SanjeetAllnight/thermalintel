@@ -1,0 +1,113 @@
+{
+  "hotspot": {
+    "id": "VIIRS-SNPP-20261001-028",
+    "latitude": 19.418,
+    "longitude": -155.291,
+    "brightness": 355.6,
+    "scan": 0.41,
+    "track": 0.38,
+    "acq_date": "2026-10-01",
+    "acq_time": "0940",
+    "satellite": "Suomi-NPP",
+    "instrument": "VIIRS",
+    "confidence": "high",
+    "version": "2.0NRT",
+    "bright_t31": 300.2,
+    "frp": 215.0,
+    "daynight": "N",
+    "source_type": "volcanic",
+    "risk_score": 68.5,
+    "risk_level": "high",
+    "is_anomaly": false,
+    "cluster_id": "CL-KILAUEA",
+    "cluster_size": 2,
+    "nearest_place": "Kilauea Caldera Southwest Active Rift, HI",
+    "last_updated": "2026-10-01T09:48:00Z"
+  },
+  "geospatial": {
+    "land_cover": "unclassified_terrain",
+    "nearest_infrastructure": "Local Access Route",
+    "distance_to_infrastructure_meters": 1500.0,
+    "nearest_settlement": "Kilauea Caldera Southwest Active Rift, HI",
+    "distance_to_settlement_meters": 4200.0,
+    "is_protected_area": false,
+    "protected_area_name": null,
+    "elevation_meters": 300.0,
+    "slope_degrees": 10.0,
+    "fuel_load_estimate": "moderate"
+  },
+  "weather": {
+    "temperature_celsius": 24.0,
+    "relative_humidity_percent": 35.0,
+    "wind_speed_kmh": 15.0,
+    "wind_gust_kmh": 25.0,
+    "wind_direction_degrees": 180.0,
+    "wind_direction_cardinal": "S",
+    "precipitation_mm": 0.0,
+    "fire_weather_index": 40.0,
+    "forecast_summary": "Dry seasonal weather; sensor telemetry unavailable"
+  },
+  "historical": {
+    "prior_detections_30d": 0,
+    "prior_detections_90d": 0,
+    "is_recurrent_site": false,
+    "recurrent_pattern": "none",
+    "first_detected_date": "2026-10-01",
+    "detection_frequency_score": 0.0
+  },
+  "intelligence": {
+    "hotspot_id": "VIIRS-SNPP-20261001-028",
+    "classification": {
+      "predicted_source": "volcanic",
+      "confidence": 0.85,
+      "probabilities": {
+        "volcanic": 0.85,
+        "unknown": 0.15
+      },
+      "feature_importance": {
+        "fire_radiative_power": 0.5,
+        "brightness": 0.3,
+        "historical_recurrence": 0.2
+      }
+    },
+    "anomaly": {
+      "is_anomaly": false,
+      "anomaly_score": 0.2,
+      "baseline_deviation": 0.5,
+      "anomaly_rationale": "Thermal radiance within nominal baseline parameters."
+    },
+    "risk": {
+      "risk_score": 68.5,
+      "risk_level": "high",
+      "frp_component": 100.0,
+      "weather_component": 40.0,
+      "proximity_component": 45.0,
+      "historical_component": 15.0,
+      "explainable_factors": [
+        {
+          "factor": "Satellite Thermal Radiance (215.0 MW)",
+          "weight": 0.5,
+          "impact": "high",
+          "description": "Measured 215.0 MW Fire Radiative Power via Suomi-NPP VIIRS sensor."
+        }
+      ],
+      "recommended_action": "Deploy localized aerial verification and monitor fire weather."
+    },
+    "model_version": "v1.0-rf-heuristic",
+    "evaluated_at": "2026-10-01T09:48:00Z"
+  },
+  "timeline": [
+    {
+      "timestamp": "2026-10-01T09:40:00Z",
+      "event_type": "satellite_pass",
+      "summary": "Suomi-NPP VIIRS detected 215.0 MW thermal anomaly",
+      "details": {
+        "satellite": "Suomi-NPP",
+        "instrument": "VIIRS",
+        "confidence": "high",
+        "brightness_kelvin": 355.6
+      }
+    }
+  ],
+  "data_mode": "demo"
+}

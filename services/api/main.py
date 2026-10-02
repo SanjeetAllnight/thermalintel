@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 from services.api.routers import api_router
 from services.api.database import seed_if_empty
+from services.api.security import get_cors_origins
 
 load_dotenv()
 
@@ -32,16 +33,12 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Enable CORS for local Next.js frontend development
+# Enable configuration-driven CORS without wildcards
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "*"
-    ],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
 )
 
