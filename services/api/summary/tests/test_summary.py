@@ -224,3 +224,82 @@ def test_sqlite_summary_service_integration():
     assert sources_resp.total_evaluated == summary.total_active_hotspots
     assert len(sources_resp.sources) > 0
 
+
+def test_summary_targeted_sql_aggregate_efficiency():
+    """Verify get_summary uses targeted aggregates rather than full-table SELECT * scans."""
+    from services.api.database import get_connection, seed_if_empty
+    seed_if_empty()
+
+    executed_queries = []
+
+    class QueryTrackingConnection:
+        def __init__(self, real_conn):
+            self.real_conn = real_conn
+
+        def cursor(self):
+            real_cur = self.real_conn.cursor()
+
+            class QueryTrackingCursor:
+                def __init__(self, cur):
+                    self.cur = cur
+
+                def execute(self, sql, params=()):
+                    executed_queries.append(sql.strip())
+                    return self.cur.execute(sql, params)
+
+                def fetchone(self):
+                    return self.cur.fetchone()
+
+                def fetchall(self):
+                    return self.cur.fetchall()
+
+                def __getattr__(self, name):
+                    return getattr(self.cur, name)
+
+            return QueryTrackingCursor(real_cur)
+
+        def commit(self):
+            return self.real_conn.commit()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.real_conn.close()
+
+    def tracking_factory():
+        return QueryTrackingConnection(get_connection())
+
+    service = SummaryService(connection_factory=tracking_factory)
+
+    # 1. Summary
+    executed_queries.clear()
+    summary = service.get_summary()
+    assert summary.total_active_hotspots > 0
+
+    # Ensure NO unbounded full-table scans
+    for q in executed_queries:
+        normalized = " ".join(q.split()).upper()
+        # "SELECT * FROM HOTSPOTS" without a LIMIT clause is forbidden
+        if "SELECT * FROM HOTSPOTS" in normalized:
+            assert "LIMIT" in normalized, f"Unbounded full-table scan detected: {q}"
+
+    # Verify aggregation query was executed
+    has_aggregate = any("COUNT(*)" in q.upper() and "AVG(" in q.upper() for q in executed_queries)
+    assert has_aggregate, f"Expected aggregate query with COUNT and AVG, got: {executed_queries}"
+
+    # 2. Sources
+    executed_queries.clear()
+    sources = service.get_sources()
+    assert sources.total_evaluated > 0
+
+    # Ensure NO SELECT * FROM hotspots at all in get_sources
+    for q in executed_queries:
+        normalized = " ".join(q.split()).upper()
+        assert "SELECT * FROM HOTSPOTS" not in normalized, f"Full table scan in get_sources: {q}"
+
+    # Verify GROUP BY was used
+    has_group_by = any("GROUP BY" in q.upper() for q in executed_queries)
+    assert has_group_by, f"Expected GROUP BY aggregate query in get_sources, got: {executed_queries}"
+
+

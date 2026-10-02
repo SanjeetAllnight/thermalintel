@@ -1,45 +1,89 @@
-"""Alert generation engine for ThermalIntel Phase 4.
+"""Alert generation engine for ThermalIntel Phase 4 & V2.
 
 Transforms validated incidents, hotspots, and intelligence evaluations into
 evidence-based operational alerts for the command-center feed.
+Supports both legacy Hotspot-driven alerts and canonical V2 transition-driven alerts.
 """
 
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 from datetime import datetime, timezone
 
 from services.api.schemas.alert import Alert
-from services.api.schemas.common import AlertSeverity, RiskLevel, SourceType
+from services.api.schemas.common import AlertSeverity as V1AlertSeverity, RiskLevel, SourceType
 from services.api.schemas.hotspot import Hotspot
 from services.api.schemas.incident import IncidentDetail
 from services.api.incidents.models import AggregatedIncident
 from services.api.alerts.deduplication import AlertDeduplicator
+from services.api.alerts.rules import AlertRule, TransitionContext, get_default_rules
+from services.api.schemas.v2.alert import AlertV2
+from services.api.schemas.v2.event import IncidentEvent
+from services.api.schemas.v2.incident import Incident
+from services.api.alerts.priority import AlertPriorityComparator
 
 
 class AlertGenerator:
-    """Evaluates thermal events against operational thresholds to generate structured alerts."""
+    """Evaluates thermal events and incident transitions against operational thresholds."""
 
-    def __init__(self, include_medium: bool = False):
+    def __init__(
+        self,
+        include_medium: bool = False,
+        rules: Optional[List[AlertRule]] = None,
+    ):
         """Initialize generator.
         
         Args:
             include_medium: If True, also generates informational/advisory alerts for medium risk events.
+            rules: Optional custom suite of AlertRule instances for V2 transition evaluation.
         """
         self.include_medium = include_medium
         self.deduplicator = AlertDeduplicator()
+        self.rules = rules if rules is not None else get_default_rules()
+
+    def generate_from_transition(
+        self,
+        incident: Incident,
+        event: IncidentEvent,
+        previous_incident: Optional[Incident] = None,
+        extra_evidence: Optional[Dict[str, Any]] = None,
+    ) -> Optional[AlertV2]:
+        """Evaluate an incident transition event through the V2 alert rules engine.
+        
+        Returns:
+            Highest priority generated AlertV2, or None if no alert criteria triggered.
+        """
+        ctx = TransitionContext(
+            incident=incident,
+            event=event,
+            previous_incident=previous_incident,
+            extra_evidence=extra_evidence or {},
+        )
+
+        candidates: List[AlertV2] = []
+        for rule in self.rules:
+            alert = rule.evaluate(ctx)
+            if alert:
+                candidates.append(alert)
+
+        if not candidates:
+            return None
+
+        # Return highest priority candidate
+        sorted_candidates = AlertPriorityComparator.sort_v2(candidates)
+        return sorted_candidates[0]
 
     def generate_from_hotspot(
         self,
         hotspot: Hotspot,
         detail: Optional[IncidentDetail] = None,
     ) -> Optional[Alert]:
-        """Generate an Alert from a Hotspot, utilizing IncidentDetail context if available."""
+        """Generate a V1 Alert from a Hotspot, utilizing IncidentDetail context if available."""
         # Risk threshold evaluation
         if hotspot.risk_level == RiskLevel.CRITICAL or hotspot.risk_score >= 75.0:
-            severity = AlertSeverity.CRITICAL
+            severity = V1AlertSeverity.CRITICAL
         elif hotspot.risk_level == RiskLevel.HIGH or hotspot.risk_score >= 50.0:
-            severity = AlertSeverity.WARNING
+            severity = V1AlertSeverity.WARNING
         elif self.include_medium and (hotspot.risk_level == RiskLevel.MEDIUM or hotspot.risk_score >= 25.0):
-            severity = AlertSeverity.INFO
+            severity = V1AlertSeverity.INFO
         else:
             # Low risk or non-alertable events do not generate alerts
             return None
@@ -54,9 +98,9 @@ class AlertGenerator:
         # Recommended action preservation
         if detail and detail.intelligence and detail.intelligence.risk and detail.intelligence.risk.recommended_action:
             action = detail.intelligence.risk.recommended_action
-        elif severity == AlertSeverity.CRITICAL:
+        elif severity == V1AlertSeverity.CRITICAL:
             action = "Dispatch immediate field reconnaissance unit; coordinate evacuation staging and perimeter defense."
-        elif severity == AlertSeverity.WARNING:
+        elif severity == V1AlertSeverity.WARNING:
             action = "Monitor sector progression via next orbital satellite pass and notify regional dispatch."
         else:
             action = "Log baseline detection in thermal surveillance catalog."
@@ -78,7 +122,7 @@ class AlertGenerator:
         )
 
     def generate_from_incident(self, incident: AggregatedIncident) -> Optional[Alert]:
-        """Generate an Alert from an AggregatedIncident."""
+        """Generate a V1 Alert from an AggregatedIncident."""
         if incident.primary_hotspot:
             alert = self.generate_from_hotspot(incident.primary_hotspot)
             if alert:
@@ -95,11 +139,11 @@ class AlertGenerator:
 
         # Fallback if primary_hotspot object not attached
         if incident.risk_level == RiskLevel.CRITICAL or incident.risk_score >= 75.0:
-            severity = AlertSeverity.CRITICAL
+            severity = V1AlertSeverity.CRITICAL
         elif incident.risk_level == RiskLevel.HIGH or incident.risk_score >= 50.0:
-            severity = AlertSeverity.WARNING
+            severity = V1AlertSeverity.WARNING
         elif self.include_medium and incident.risk_level == RiskLevel.MEDIUM:
-            severity = AlertSeverity.INFO
+            severity = V1AlertSeverity.INFO
         else:
             return None
 
@@ -133,7 +177,7 @@ class AlertGenerator:
         self,
         hotspot: Hotspot,
         detail: Optional[IncidentDetail],
-        severity: AlertSeverity,
+        severity: V1AlertSeverity,
         location: str,
     ) -> tuple[str, str, List[str]]:
         """Synthesize evidence-driven headline, explanatory message, and tags."""
@@ -168,7 +212,7 @@ class AlertGenerator:
             tags.append("high_wind")
 
         # Title formatting
-        if severity == AlertSeverity.CRITICAL:
+        if severity == V1AlertSeverity.CRITICAL:
             if hotspot.source_type == SourceType.WILDFIRE:
                 if dist_settlement and dist_settlement <= 2000.0:
                     title = f"Rapid Convective Flare & Settlement Threat - {location}"
@@ -180,7 +224,7 @@ class AlertGenerator:
                 title = f"Major Volcanic Effusion & Thermal Outlier - {location}"
             else:
                 title = f"Critical Thermal Anomaly - {location}"
-        elif severity == AlertSeverity.WARNING:
+        elif severity == V1AlertSeverity.WARNING:
             if hotspot.source_type == SourceType.WILDFIRE:
                 title = f"Active Thermal Anomaly in Wildland Area - {location}"
             elif hotspot.source_type == SourceType.INDUSTRIAL:
