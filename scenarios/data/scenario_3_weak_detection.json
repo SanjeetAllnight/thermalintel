@@ -1,0 +1,63 @@
+{
+  "id": "SCN-003-WEAK-DETECTION",
+  "name": "Transient Weak Detection with Non-Recurrence",
+  "description": "Simulates a single marginal thermal detection with low sensor confidence, minimal radiometric intensity (FRP 2.8 MW), and vast isolation from human settlements. No subsequent thermal detections occur, verifying that the pipeline maintains low severity, creates no alert storms, and safely remains quiet/unconfirmed.",
+  "mode": "synthetic",
+  "start_time_utc": "2026-10-01T04:00:00Z",
+  "metadata": {
+    "version": "1.0.0",
+    "author": "ThermalIntel Replay Team",
+    "tags": ["weak_detection", "transient", "non_recurrent", "low_risk"],
+    "seed": 42
+  },
+  "observations": [
+    {
+      "observation_id": "OBS-SCN003-001",
+      "acquisition_time_utc": "2026-10-01T04:30:00Z",
+      "latitude": 44.15,
+      "longitude": -115.82,
+      "brightness": 303.5,
+      "bright_t31": 288.0,
+      "frp": 2.8,
+      "scan": 0.375,
+      "track": 0.375,
+      "daynight": "N",
+      "detection_confidence": "low",
+      "satellite": "Suomi-NPP",
+      "instrument": "VIIRS",
+      "provider": "NASA_FIRMS",
+      "product": "VIIRS_SNPP_NRT",
+      "nearest_place": "Remote Ridge Basin",
+      "context": {
+        "land_cover": "rock_and_sparse_vegetation",
+        "distance_to_industrial_m": 45000.0,
+        "nearby_industrial_count": 0,
+        "distance_to_settlement_m": 28500.0,
+        "distance_to_infrastructure_m": 15200.0,
+        "nearest_settlement": "Remote Outpost",
+        "nearest_infrastructure": "Backcountry Dirt Track",
+        "is_protected_area": false,
+        "slope_degrees": 8.0,
+        "elevation_m": 1950.0,
+        "prior_detections_30d": 0,
+        "prior_detections_90d": 0,
+        "is_recurrent_site": false,
+        "recurrent_pattern": "none",
+        "wind_speed_kmh": 6.0,
+        "wind_gust_kmh": 9.0,
+        "temperature_c": 11.0,
+        "relative_humidity_pct": 68.0,
+        "fire_weather_index": 12.0
+      },
+      "expected_source": "unknown",
+      "label_type": "SYNTHETIC_EXPECTATION"
+    }
+  ],
+  "expected_states": {
+    "min_incidents": 0,
+    "max_incidents": 1,
+    "expected_escalation": false,
+    "expected_alert_count": 0,
+    "final_severity": "low"
+  }
+}
