@@ -30,18 +30,18 @@ export const IncidentFeed: React.FC<IncidentFeedProps> = ({
       id="incident-list-container"
       role="region"
       aria-label="Prioritized Incident Queue"
-      className="rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col overflow-hidden shadow-lg h-full"
+      className="rounded bg-surface/95 border border-border-color flex flex-col overflow-hidden shadow-2xl h-full cyber-chamfer-xs"
     >
       {/* Header with Sort and Records Counter */}
-      <div className="px-4 py-3 border-b border-slate-800/80 bg-slate-900/95 flex items-center justify-between gap-2">
+      <div className="px-3.5 py-2.5 border-b border-border-color bg-void/90 flex items-center justify-between gap-2">
         <div className="flex items-center space-x-2">
-          <Flame className="w-4 h-4 text-red-500" aria-hidden="true" />
-          <h2 className="text-sm font-bold text-white tracking-wide uppercase font-mono">
+          <Flame className="w-4 h-4 text-thermal-orange" aria-hidden="true" />
+          <h2 className="text-xs sm:text-sm font-bold text-white tracking-wider uppercase font-mono">
             Incident Queue
           </h2>
           <span
             id="incident-queue-count"
-            className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-bold"
+            className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-elevated text-cyber-cyan border border-border-color font-bold"
           >
             {hotspots.length} Active
           </span>
@@ -57,7 +57,7 @@ export const IncidentFeed: React.FC<IncidentFeedProps> = ({
             id="select-incident-sort"
             value={sortBy}
             onChange={(e) => onSortChange(e.target.value as SortField)}
-            className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-cyan-400 cursor-pointer"
+            className="bg-void border border-border-color rounded px-2 py-0.5 text-slate-200 text-[10px] font-medium focus:outline-none focus:ring-1 focus:ring-cyber-cyan cursor-pointer cyber-chamfer-xs"
           >
             <option value="risk">Highest Risk</option>
             <option value="frp">Radiative Power (MW)</option>
@@ -69,14 +69,14 @@ export const IncidentFeed: React.FC<IncidentFeedProps> = ({
 
       {/* Incident List Body */}
       <div
-        className="flex-1 overflow-y-auto p-3 space-y-2.5 max-h-[580px] focus:outline-none"
+        className="flex-1 overflow-y-auto p-2.5 space-y-2 max-h-[580px] focus:outline-none"
         tabIndex={0}
         aria-label="Incident Cards List (Use Up/Down arrows to navigate)"
       >
         {loading && hotspots.length === 0 ? (
           <div className="p-8 text-center space-y-3 text-slate-400">
-            <Radio className="w-6 h-6 mx-auto animate-pulse text-cyan-400" aria-hidden="true" />
-            <div className="text-xs font-semibold text-slate-300">
+            <Radio className="w-6 h-6 mx-auto animate-pulse text-cyber-cyan" aria-hidden="true" />
+            <div className="text-xs font-semibold text-slate-300 font-mono">
               Correlating orbital satellite passes...
             </div>
             <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
@@ -85,10 +85,10 @@ export const IncidentFeed: React.FC<IncidentFeedProps> = ({
           </div>
         ) : hotspots.length === 0 ? (
           <div className="p-8 text-center space-y-3" role="status">
-            <div className="w-10 h-10 rounded-full bg-slate-800/80 border border-slate-700 mx-auto flex items-center justify-center text-slate-400">
+            <div className="w-10 h-10 rounded bg-elevated border border-border-color mx-auto flex items-center justify-center text-slate-400 cyber-chamfer-xs">
               <FilterX className="w-5 h-5 text-slate-400" aria-hidden="true" />
             </div>
-            <div className="text-xs font-semibold text-slate-200">
+            <div className="text-xs font-semibold text-slate-200 font-mono">
               No incidents match operational filters
             </div>
             <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
@@ -99,7 +99,7 @@ export const IncidentFeed: React.FC<IncidentFeedProps> = ({
                 type="button"
                 id="btn-reset-filters-empty"
                 onClick={onResetFilters}
-                className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white rounded-lg text-xs font-semibold transition-all border border-slate-700 cursor-pointer"
+                className="px-3.5 py-1.5 bg-elevated hover:bg-surface active:scale-95 text-white rounded text-xs font-semibold transition-all border border-border-color cursor-pointer font-mono uppercase cyber-chamfer-xs"
               >
                 Reset All Filters
               </button>
@@ -118,7 +118,7 @@ export const IncidentFeed: React.FC<IncidentFeedProps> = ({
       </div>
 
       {/* Footer Info */}
-      <div className="px-4 py-2 border-t border-slate-800/80 bg-slate-950/80 text-[11px] text-slate-500 flex items-center justify-between font-mono">
+      <div className="px-3.5 py-1.5 border-t border-border-color bg-void text-[10px] text-slate-500 flex items-center justify-between font-mono">
         <span className="hidden sm:inline">NAVIGATE: ARROW KEYS ↑ / ↓</span>
         <span className="sm:hidden">QUEUE READY</span>
         <span>SELECT TO INSPECT &rarr;</span>

@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Hotspot } from '../../types/api';
 import { MapLegend } from './MapLegend';
-import { Maximize2, Crosshair, Layers, Flame, Eye, EyeOff } from 'lucide-react';
+import { Maximize2, Crosshair, Layers, Flame, Eye, EyeOff, Navigation, Radio } from 'lucide-react';
 import { getRiskLevelMeta, getSourceMeta } from '../../lib/formatters';
 
 interface ThermalMapProps {
@@ -31,10 +31,10 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
   const [basemap, setBasemap] = useState<BasemapType>('dark');
   const [showHalos, setShowHalos] = useState<boolean>(true);
   const [mapReady, setMapReady] = useState<boolean>(false);
+  const [cursorCoords, setCursorCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [currentZoom, setCurrentZoom] = useState<number>(6);
 
   // Basemap Tile URLs
-  // CARTO requires an API key appended as ?key=<NEXT_PUBLIC_CARTO_API_KEY>.
-  // If the env var is absent the keyless URL is used (map renders with watermark rather than crashing).
   const cartoApiKey = process.env.NEXT_PUBLIC_CARTO_API_KEY ?? '';
   const cartoBaseUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
   const cartoDarkUrl = cartoApiKey
@@ -92,6 +92,14 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
     mapInstanceRef.current = map;
     setMapReady(true);
 
+    // Event listeners for telemetry overlay
+    map.on('mousemove', (e: L.LeafletMouseEvent) => {
+      setCursorCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
+    });
+    map.on('zoomend', () => {
+      setCurrentZoom(map.getZoom());
+    });
+
     return () => {
       map.remove();
       mapInstanceRef.current = null;
@@ -136,20 +144,20 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
           radius: radiusMeters,
           color: meta.fillHex,
           weight: isSelected ? 2 : 1,
-          opacity: isSelected ? 0.8 : 0.4,
+          opacity: isSelected ? 0.9 : 0.4,
           fillColor: meta.fillHex,
-          fillOpacity: isSelected ? 0.25 : 0.1,
+          fillOpacity: isSelected ? 0.3 : 0.12,
           interactive: false,
         });
         halosLayerRef.current?.addLayer(halo);
       }
 
       // 2. Custom Marker Icon with distinct severity symbols and high contrast
-      const markerSize = isSelected ? 30 : h.risk_level === 'critical' ? 24 : 18;
+      const markerSize = isSelected ? 32 : h.risk_level === 'critical' ? 26 : 20;
       const pulseHtml =
         h.risk_level === 'critical' || isSelected
           ? `<span class="absolute -inset-2 rounded-full ${
-              isSelected ? 'bg-cyan-400/50 motion-safe:animate-ping' : 'bg-red-500/40 motion-safe:animate-ping'
+              isSelected ? 'bg-cyber-cyan/50 motion-safe:animate-ping' : 'bg-red-500/40 motion-safe:animate-ping'
             }"></span>`
           : '';
 
@@ -158,10 +166,10 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
       let shapeClass = 'rounded-full';
       if (h.risk_level === 'critical') {
         symbol = '!';
-        shapeClass = 'rounded-full border-2 border-white ring-2 ring-red-600';
+        shapeClass = 'rounded-full border-2 border-white ring-2 ring-red-600 shadow-[0_0_10px_rgba(255,51,102,0.8)]';
       } else if (h.risk_level === 'high') {
         symbol = '▲';
-        shapeClass = 'rounded-md border border-white/80';
+        shapeClass = 'rounded-md border border-white/80 shadow-[0_0_8px_rgba(255,107,0,0.6)]';
       } else if (h.risk_level === 'medium') {
         symbol = '■';
         shapeClass = 'rounded-sm border border-slate-900';
@@ -172,7 +180,7 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
 
       if (isSelected) {
         symbol = '✛';
-        shapeClass = 'rounded-full border-2 border-cyan-300 ring-4 ring-cyan-500/70 shadow-lg shadow-cyan-500/50';
+        shapeClass = 'rounded-full border-2 border-cyber-cyan ring-4 ring-cyber-cyan/60 shadow-[0_0_16px_rgba(0,212,255,0.9)]';
       }
 
       const icon = L.divIcon({
@@ -180,8 +188,8 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
         html: `
           <div class="relative flex items-center justify-center cursor-pointer transition-transform hover:scale-125 select-none" style="width: ${markerSize}px; height: ${markerSize}px;">
             ${pulseHtml}
-            <div class="w-full h-full ${shapeClass} flex items-center justify-center font-black font-mono text-[10px] text-white shadow-md" style="background-color: ${
-          isSelected ? '#06b6d4' : meta.fillHex
+            <div class="w-full h-full ${shapeClass} flex items-center justify-center font-black font-mono text-[10px] text-white" style="background-color: ${
+          isSelected ? '#00d4ff' : meta.fillHex
         };">
               ${symbol}
             </div>
@@ -195,24 +203,24 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
 
       // Interactive Popup
       const popupContent = document.createElement('div');
-      popupContent.className = 'p-3 bg-slate-950 text-slate-100 rounded-lg border border-slate-800 font-sans min-w-[210px]';
+      popupContent.className = 'p-3 bg-void text-foreground rounded border border-cyber-border font-mono min-w-[220px] shadow-2xl';
       popupContent.innerHTML = `
-        <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-2">
-          <span class="text-xs font-mono font-bold text-white">${h.id}</span>
-          <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded" style="background-color: ${meta.fillHex}33; color: ${meta.fillHex}; border: 1px solid ${meta.fillHex}66;">
+        <div class="flex items-center justify-between gap-2 border-b border-cyber-border pb-1.5 mb-2">
+          <span class="text-xs font-bold text-cyber-cyan">${h.id}</span>
+          <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded tracking-wider" style="background-color: ${meta.fillHex}33; color: ${meta.fillHex}; border: 1px solid ${meta.fillHex}66;">
             ${h.risk_level} (${Math.round(h.risk_score)})
           </span>
         </div>
-        <div class="text-[11px] font-semibold text-slate-300 mb-1.5 line-clamp-2">
+        <div class="text-[11px] font-sans font-semibold text-slate-200 mb-1.5 line-clamp-2">
           ${h.nearest_place || 'Unclassified Territory'}
         </div>
-        <div class="grid grid-cols-2 gap-1 text-[10px] text-slate-400 mb-2.5">
-          <div>Source: <strong class="text-slate-200 capitalize">${sourceMeta.label}</strong></div>
-          <div>FRP: <strong class="text-cyan-400">${h.frp.toFixed(1)} MW</strong></div>
-          <div>Confidence: <strong class="text-slate-200 capitalize">${h.confidence}</strong></div>
-          <div>Anomaly: <strong class="${h.is_anomaly ? 'text-red-400' : 'text-slate-400'}">${h.is_anomaly ? 'YES (Outlier)' : 'No'}</strong></div>
+        <div class="grid grid-cols-2 gap-1 text-[10px] text-subtle mb-2.5">
+          <div>Source: <strong class="text-foreground capitalize">${sourceMeta.label}</strong></div>
+          <div>FRP: <strong class="text-thermal-DEFAULT font-bold">${h.frp.toFixed(1)} MW</strong></div>
+          <div>Confidence: <strong class="text-foreground capitalize">${h.confidence}</strong></div>
+          <div>Anomaly: <strong class="${h.is_anomaly ? 'text-destructive' : 'text-subtle'}">${h.is_anomaly ? 'YES (Outlier)' : 'No'}</strong></div>
         </div>
-        <button id="btn-inspect-${h.id}" class="w-full py-1.5 px-2 bg-red-600 hover:bg-red-500 active:scale-95 text-white text-xs font-semibold rounded shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer">
+        <button id="btn-inspect-${h.id}" class="w-full py-1.5 px-2 bg-thermal-DEFAULT hover:bg-thermal-bright active:scale-95 text-void font-bold text-xs rounded uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer">
           <span>Inspect Dossier</span> &rarr;
         </button>
       `;
@@ -226,7 +234,7 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
       marker.bindPopup(popupContent, {
         className: 'dark-leaflet-popup',
         closeButton: false,
-        maxWidth: 260,
+        maxWidth: 270,
       });
 
       marker.on('click', () => {
@@ -281,19 +289,21 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full min-h-[480px] bg-slate-950 overflow-hidden select-none">
+    <div className="relative w-full h-full min-h-[480px] bg-void overflow-hidden select-none">
       {/* Map Surface */}
       <div ref={mapContainerRef} className="w-full h-full min-h-[480px] z-0" />
 
       {/* Floating Tactical Controls Toolbar (Top Left) */}
       <div className="absolute top-4 left-4 z-[400] flex flex-wrap items-center gap-2">
         {/* Basemap Switcher */}
-        <div className="flex items-center rounded-lg bg-slate-950/90 backdrop-blur-md border border-slate-800 p-1 shadow-xl text-xs font-mono">
+        <div className="flex items-center cyber-chamfer-xs bg-void/90 backdrop-blur-md border border-cyber-border p-1 shadow-2xl text-xs font-mono">
           <button
             type="button"
             onClick={() => setBasemap('dark')}
-            className={`px-2.5 py-1 rounded transition-all ${
-              basemap === 'dark' ? 'bg-slate-800 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+            className={`px-2.5 py-1 rounded transition-all uppercase tracking-wider ${
+              basemap === 'dark'
+                ? 'bg-elevated text-cyber-cyan font-bold border border-cyber-cyan/40 shadow-[0_0_8px_rgba(0,212,255,0.2)]'
+                : 'text-subtle hover:text-foreground'
             }`}
           >
             Dark Vector
@@ -301,8 +311,10 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
           <button
             type="button"
             onClick={() => setBasemap('satellite')}
-            className={`px-2.5 py-1 rounded transition-all ${
-              basemap === 'satellite' ? 'bg-slate-800 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+            className={`px-2.5 py-1 rounded transition-all uppercase tracking-wider ${
+              basemap === 'satellite'
+                ? 'bg-elevated text-cyber-cyan font-bold border border-cyber-cyan/40 shadow-[0_0_8px_rgba(0,212,255,0.2)]'
+                : 'text-subtle hover:text-foreground'
             }`}
           >
             Satellite
@@ -310,8 +322,10 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
           <button
             type="button"
             onClick={() => setBasemap('topo')}
-            className={`px-2.5 py-1 rounded transition-all ${
-              basemap === 'topo' ? 'bg-slate-800 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+            className={`px-2.5 py-1 rounded transition-all uppercase tracking-wider ${
+              basemap === 'topo'
+                ? 'bg-elevated text-cyber-cyan font-bold border border-cyber-cyan/40 shadow-[0_0_8px_rgba(0,212,255,0.2)]'
+                : 'text-subtle hover:text-foreground'
             }`}
           >
             Topo
@@ -322,12 +336,14 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
         <button
           type="button"
           onClick={() => setShowHalos(!showHalos)}
-          className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-950/90 backdrop-blur-md border text-xs shadow-xl transition-all ${
-            showHalos ? 'border-cyan-500/50 text-cyan-300' : 'border-slate-800 text-slate-400 hover:text-slate-200'
+          className={`flex items-center space-x-1.5 px-2.5 py-1.5 cyber-chamfer-xs bg-void/90 backdrop-blur-md border text-xs shadow-xl transition-all font-mono uppercase tracking-wider ${
+            showHalos
+              ? 'border-thermal-DEFAULT/60 text-thermal-bright shadow-[0_0_8px_rgba(255,107,0,0.2)]'
+              : 'border-cyber-border text-subtle hover:text-foreground'
           }`}
           title="Toggle Thermal FRP Radiance Halos"
         >
-          {showHalos ? <Eye className="w-3.5 h-3.5 text-cyan-400" /> : <EyeOff className="w-3.5 h-3.5" />}
+          {showHalos ? <Eye className="w-3.5 h-3.5 text-thermal-DEFAULT" /> : <EyeOff className="w-3.5 h-3.5" />}
           <span className="hidden sm:inline">FRP Halos</span>
         </button>
 
@@ -336,10 +352,10 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
           id="btn-map-fit-all"
           type="button"
           onClick={handleFitAll}
-          className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-950/90 backdrop-blur-md border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white text-xs shadow-xl transition-all"
+          className="flex items-center space-x-1 px-2.5 py-1.5 cyber-chamfer-xs bg-void/90 backdrop-blur-md border border-cyber-border hover:border-cyber-cyan/50 text-subtle hover:text-foreground text-xs font-mono uppercase tracking-wider shadow-xl transition-all"
           title="Fit view to all active anomalies"
         >
-          <Maximize2 className="w-3.5 h-3.5" />
+          <Maximize2 className="w-3.5 h-3.5 text-cyber-cyan" />
           <span className="hidden sm:inline">Fit All</span>
         </button>
 
@@ -349,10 +365,10 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
             id="btn-map-focus-target"
             type="button"
             onClick={handleFocusSelected}
-            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-red-950/80 backdrop-blur-md border border-red-800 text-red-300 hover:text-white text-xs shadow-xl transition-all animate-pulse"
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 cyber-chamfer-xs bg-destructive/20 backdrop-blur-md border border-destructive/60 text-destructive hover:text-white text-xs font-mono uppercase tracking-wider shadow-[0_0_10px_rgba(255,51,102,0.4)] transition-all animate-pulse"
             title="Focus Selected Hotspot"
           >
-            <Crosshair className="w-3.5 h-3.5 text-red-400" />
+            <Crosshair className="w-3.5 h-3.5 text-destructive" />
             <span>Target: {selectedHotspotId.split('-').pop()}</span>
           </button>
         )}
@@ -362,12 +378,21 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
       <MapLegend />
 
       {/* Coordinates / Telemetry HUD Overlay (Bottom Right) */}
-      <div className="absolute bottom-3 right-3 z-[400] pointer-events-none hidden sm:flex items-center space-x-3 text-[10px] font-mono text-slate-400 bg-slate-950/80 backdrop-blur px-2.5 py-1 rounded border border-slate-800/80">
-        <span>SENSOR: VIIRS 375m NRT</span>
-        <span className="text-slate-600">•</span>
-        <span>PROJECTION: EPSG:3857</span>
-        <span className="text-slate-600">•</span>
-        <span className="text-emerald-400">FPS: 60 STABLE</span>
+      <div className="absolute bottom-3 right-3 z-[400] pointer-events-none hidden sm:flex items-center space-x-3 text-[10px] font-mono text-subtle bg-void/90 backdrop-blur-md px-3 py-1.5 rounded border border-cyber-border/80 shadow-2xl">
+        <div className="flex items-center space-x-1.5">
+          <Navigation className="w-3 h-3 text-cyber-cyan" />
+          <span>
+            {cursorCoords
+              ? `LAT: ${cursorCoords.lat.toFixed(4)}° | LON: ${cursorCoords.lng.toFixed(4)}°`
+              : 'CURSOR: STANDBY'}
+          </span>
+        </div>
+        <span className="text-cyber-border">•</span>
+        <span>ZOOM: {currentZoom.toFixed(1)}x</span>
+        <span className="text-cyber-border">•</span>
+        <span>SENSOR: VIIRS 375m</span>
+        <span className="text-cyber-border">•</span>
+        <span className="text-cyber-accent font-bold">GRID: EPSG:3857</span>
       </div>
     </div>
   );
