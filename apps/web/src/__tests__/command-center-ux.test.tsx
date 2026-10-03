@@ -80,13 +80,17 @@ const mockIncidentDetail: IncidentDetail = {
     anomaly: {
       is_anomaly: true,
       anomaly_score: -0.74,
-      anomaly_type: 'Extreme FRP + High Wind Spread',
-      deviation_sigma: 3.85,
+      anomaly_rationale: 'Extreme FRP + High Wind Spread',
+      baseline_deviation: 3.85,
     },
     risk: {
       risk_score: 91.5,
       risk_level: 'critical',
-      factors: [
+      frp_component: 35.0,
+      weather_component: 25.0,
+      proximity_component: 20.0,
+      historical_component: 11.5,
+      explainable_factors: [
         {
           factor: 'Thermal Radiative Power (185.4 MW)',
           weight: 0.35,
@@ -100,10 +104,7 @@ const mockIncidentDetail: IncidentDetail = {
           description: 'Threat to regional electrical transmission infrastructure',
         },
       ],
-      recommendations: [
-        'Dispatch CalFire aerial reconnaissance immediately',
-        'Initiate de-energization standby for 230kV transmission line',
-      ],
+      recommended_action: 'Dispatch CalFire aerial reconnaissance immediately',
     },
     model_version: '2.4.0-rf-isolation',
     evaluated_at: '2026-10-01T08:52:00Z',
