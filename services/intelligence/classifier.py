@@ -19,7 +19,7 @@ For each inference, produces:
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 from services.api.schemas.common import SourceType
 from services.api.schemas.intelligence import ClassificationResult
@@ -64,8 +64,35 @@ class ClassificationEvidenceRecord:
 class ThermalSourceClassifier:
     """Explainable rule-based evidence accumulator for thermal source categorization."""
 
-    def __init__(self, model_version: str = ALGORITHM_VERSION):
+    def __init__(
+        self,
+        model_version: str = ALGORITHM_VERSION,
+        rules_config: Optional[Any] = None,
+        taxonomy_config: Optional[Any] = None,
+    ):
         self.model_version = model_version
+        self._rules_config = rules_config
+        self._taxonomy_config = taxonomy_config
+
+    @property
+    def rules_config(self) -> Any:
+        if self._rules_config is not None:
+            return self._rules_config
+        try:
+            from profiles.loader import get_active_profile
+            return get_active_profile().rules
+        except Exception:
+            return None
+
+    @property
+    def taxonomy_config(self) -> Any:
+        if self._taxonomy_config is not None:
+            return self._taxonomy_config
+        try:
+            from profiles.loader import get_active_profile
+            return get_active_profile().taxonomy
+        except Exception:
+            return None
 
     def classify(self, features: FeatureVector) -> ClassificationResult:
         """Classify a thermal observation and return a backward-compatible ClassificationResult."""
@@ -99,14 +126,33 @@ class ThermalSourceClassifier:
 
     def evaluate_evidence(self, f: FeatureVector) -> ClassificationEvidenceRecord:
         """Execute rule-based evidence accumulation, generating supporting and opposing evidence."""
+        rc = self.rules_config
+        tc = self.taxonomy_config
+
         # 1. Compute evidence scores and track specific rule assertions
-        evidence: Dict[str, float] = {
-            ThermalSourceClass.VEGETATION_FIRE.value: 0.10,
-            ThermalSourceClass.POTENTIAL_INDUSTRIAL_FIRE.value: 0.10,
-            ThermalSourceClass.CONTROLLED_HEAT_SOURCE.value: 0.10,
-            ThermalSourceClass.PERSISTENT_THERMAL_SOURCE.value: 0.10,
-            ThermalSourceClass.UNKNOWN.value: 0.15,
-        }
+        if rc is not None and hasattr(rc, "evidence_priors") and rc.evidence_priors:
+            evidence: Dict[str, float] = dict(rc.evidence_priors)
+        else:
+            evidence: Dict[str, float] = {
+                ThermalSourceClass.VEGETATION_FIRE.value: 0.10,
+                ThermalSourceClass.POTENTIAL_INDUSTRIAL_FIRE.value: 0.10,
+                ThermalSourceClass.CONTROLLED_HEAT_SOURCE.value: 0.10,
+                ThermalSourceClass.PERSISTENT_THERMAL_SOURCE.value: 0.10,
+                ThermalSourceClass.UNKNOWN.value: 0.15,
+            }
+
+        # Resolve thresholds
+        if rc is not None and hasattr(rc, "thresholds") and rc.thresholds:
+            t = rc.thresholds
+            frp_high = t.frp_high_mw
+            frp_moderate = t.frp_moderate_mw
+            recurrent_passes = t.recurrent_min_passes_30d
+            persistence_thresh = t.persistence_score_threshold
+        else:
+            frp_high = FRP_HIGH_MW
+            frp_moderate = FRP_MODERATE_MW
+            recurrent_passes = RECURRENT_MIN_PASSES_30D
+            persistence_thresh = 0.50
 
         supporting: List[str] = []
         opposing: List[str] = []
@@ -115,8 +161,8 @@ class ThermalSourceClassifier:
         # --- A. PERSISTENT_THERMAL_SOURCE ---
         # Strong indicators: continuous 30d/90d detections, stationary emitter, stable moderate FRP
         is_persistent = (
-            f.persistence_score >= 0.50
-            or (f.prior_detections_30d and f.prior_detections_30d >= RECURRENT_MIN_PASSES_30D)
+            f.persistence_score >= persistence_thresh
+            or (f.prior_detections_30d and f.prior_detections_30d >= recurrent_passes)
             or f.is_recurrent_site
         )
         if is_persistent:
@@ -141,7 +187,7 @@ class ThermalSourceClassifier:
         is_near_industrial = f.industrial_proximity_score >= 0.40 or f.is_industrial_land_cover
         if is_near_industrial:
             ind_base = f.industrial_proximity_score * 1.2
-            if f.frp >= FRP_HIGH_MW and f.satellite_confidence >= 0.70:
+            if f.frp >= frp_high and f.satellite_confidence >= 0.70:
                 evidence[ThermalSourceClass.POTENTIAL_INDUSTRIAL_FIRE.value] += ind_base + 1.2
                 supporting.append(
                     f"Intense thermal radiant energy ({f.frp:.1f} MW) detected within industrial complex zone."
@@ -151,7 +197,7 @@ class ThermalSourceClassifier:
                     supporting.append("Low historical persistence indicates sudden emergence rather than routine flaring.")
                 else:
                     opposing.append("Ongoing multi-week history indicates probable continuous process flare.")
-            elif f.frp >= 20.0:
+            elif f.frp >= frp_moderate:
                 evidence[ThermalSourceClass.POTENTIAL_INDUSTRIAL_FIRE.value] += ind_base + 0.40
                 supporting.append(f"Moderate thermal activity in vicinity of industrial structures ({f.industrial_dist_m or 0:.0f}m).")
 
@@ -223,16 +269,21 @@ class ThermalSourceClassifier:
         predicted_source = self._map_to_source_type(winning_intel_class, f)
 
         # 5. Determine active Rule Identifier
-        if winning_intel_class == ThermalSourceClass.VEGETATION_FIRE:
-            active_rule_id = "RULE_ACTIVE_VEGETATION_WILDFIRE"
-        elif winning_intel_class == ThermalSourceClass.POTENTIAL_INDUSTRIAL_FIRE:
-            active_rule_id = "RULE_INDUSTRIAL_HAZARD_SPIKE"
-        elif winning_intel_class == ThermalSourceClass.PERSISTENT_THERMAL_SOURCE:
-            active_rule_id = "RULE_PERSISTENT_INDUSTRIAL_EMITTER"
-        elif winning_intel_class == ThermalSourceClass.CONTROLLED_HEAT_SOURCE:
-            active_rule_id = "RULE_MANAGED_PRESCRIBED_BURN" if f.is_protected_area else "RULE_AGRICULTURAL_BURNING"
+        if rc is not None and hasattr(rc, "rule_identifiers") and rc.rule_identifiers:
+            active_rule_id = rc.rule_identifiers.get(
+                winning_intel_class.value, "RULE_AMBIGUOUS_UNRESOLVED_UNKNOWN"
+            )
         else:
-            active_rule_id = "RULE_AMBIGUOUS_UNRESOLVED_UNKNOWN"
+            if winning_intel_class == ThermalSourceClass.VEGETATION_FIRE:
+                active_rule_id = "RULE_ACTIVE_VEGETATION_WILDFIRE"
+            elif winning_intel_class == ThermalSourceClass.POTENTIAL_INDUSTRIAL_FIRE:
+                active_rule_id = "RULE_INDUSTRIAL_HAZARD_SPIKE"
+            elif winning_intel_class == ThermalSourceClass.PERSISTENT_THERMAL_SOURCE:
+                active_rule_id = "RULE_PERSISTENT_INDUSTRIAL_EMITTER"
+            elif winning_intel_class == ThermalSourceClass.CONTROLLED_HEAT_SOURCE:
+                active_rule_id = "RULE_MANAGED_PRESCRIBED_BURN" if f.is_protected_area else "RULE_AGRICULTURAL_BURNING"
+            else:
+                active_rule_id = "RULE_AMBIGUOUS_UNRESOLVED_UNKNOWN"
 
         # 6. Build full probability distribution across all 7 frozen SourceTypes + 5 Intel classes
         full_probabilities = self._build_full_probabilities(class_support, f)
@@ -258,6 +309,14 @@ class ThermalSourceClassifier:
 
     def _map_to_source_type(self, intel_class: ThermalSourceClass, f: FeatureVector) -> SourceType:
         """Map winning intelligence class to frozen SourceType enum."""
+        tc = self.taxonomy_config
+        if tc is not None and hasattr(tc, "class_to_source_type") and tc.class_to_source_type:
+            val = tc.class_to_source_type.get(intel_class.value)
+            if val is not None:
+                if intel_class == ThermalSourceClass.CONTROLLED_HEAT_SOURCE and f.is_agricultural_land_cover:
+                    return SourceType.AGRICULTURAL
+                return SourceType(val) if isinstance(val, str) else val
+
         if intel_class == ThermalSourceClass.VEGETATION_FIRE:
             return SourceType.WILDFIRE
         elif intel_class == ThermalSourceClass.POTENTIAL_INDUSTRIAL_FIRE:

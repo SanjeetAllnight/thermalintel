@@ -1,0 +1,141 @@
+{
+  "metadata": {
+    "id": "wildfire",
+    "display_name": "Wildfire & Wildland-Urban Interface",
+    "description": "Operational intelligence profile for monitoring wildland fires, vegetative fuel beds, and wildland-urban interface (WUI) community exposure.",
+    "version": "2.0.0",
+    "author": "ThermalIntel Operations",
+    "tags": ["wildfire", "vegetation", "wui", "emergency-response"]
+  },
+  "providers": {
+    "enabled_providers": ["NASA_FIRMS", "OPEN_METEO", "OVERPASS_OSM"],
+    "default_source": "VIIRS_SNPP_NRT",
+    "supported_products": ["VIIRS_SNPP_NRT", "MODIS_NRT"],
+    "provider_settings": {
+      "cache_ttl_seconds": 3600,
+      "timeout_seconds": 10.0
+    }
+  },
+  "taxonomy": {
+    "supported_classes": [
+      "VEGETATION_FIRE",
+      "POTENTIAL_INDUSTRIAL_FIRE",
+      "CONTROLLED_HEAT_SOURCE",
+      "PERSISTENT_THERMAL_SOURCE",
+      "UNKNOWN"
+    ],
+    "default_class": "UNKNOWN",
+    "class_to_source_type": {
+      "VEGETATION_FIRE": "wildfire",
+      "POTENTIAL_INDUSTRIAL_FIRE": "industrial",
+      "CONTROLLED_HEAT_SOURCE": "prescribed_burn",
+      "PERSISTENT_THERMAL_SOURCE": "industrial",
+      "UNKNOWN": "unknown"
+    },
+    "source_type_to_class": {
+      "wildfire": "VEGETATION_FIRE",
+      "industrial": "POTENTIAL_INDUSTRIAL_FIRE",
+      "prescribed_burn": "CONTROLLED_HEAT_SOURCE",
+      "agricultural": "CONTROLLED_HEAT_SOURCE",
+      "urban": "UNKNOWN",
+      "volcanic": "UNKNOWN",
+      "unknown": "UNKNOWN"
+    },
+    "incompatible_incident_pairs": [
+      ["volcanic", "agricultural"],
+      ["volcanic", "urban"],
+      ["industrial", "wildfire"]
+    ]
+  },
+  "rules": {
+    "evidence_priors": {
+      "VEGETATION_FIRE": 0.10,
+      "POTENTIAL_INDUSTRIAL_FIRE": 0.10,
+      "CONTROLLED_HEAT_SOURCE": 0.10,
+      "PERSISTENT_THERMAL_SOURCE": 0.10,
+      "UNKNOWN": 0.15
+    },
+    "thresholds": {
+      "frp_high_mw": 40.0,
+      "frp_extreme_mw": 100.0,
+      "frp_moderate_mw": 15.0,
+      "frp_low_mw": 5.0,
+      "recurrent_min_passes_30d": 10,
+      "persistence_score_threshold": 0.50,
+      "wind_high_kmh": 30.0,
+      "rh_critical_pct": 20.0,
+      "industrial_immediate_m": 800.0,
+      "industrial_vicinity_m": 3000.0
+    },
+    "rule_identifiers": {
+      "VEGETATION_FIRE": "RULE_ACTIVE_VEGETATION_WILDFIRE",
+      "POTENTIAL_INDUSTRIAL_FIRE": "RULE_INDUSTRIAL_HAZARD_SPIKE",
+      "PERSISTENT_THERMAL_SOURCE": "RULE_PERSISTENT_INDUSTRIAL_EMITTER",
+      "CONTROLLED_HEAT_SOURCE": "RULE_MANAGED_PRESCRIBED_BURN",
+      "UNKNOWN": "RULE_AMBIGUOUS_UNRESOLVED_UNKNOWN"
+    }
+  },
+  "risk": {
+    "weights": {
+      "frp": 0.35,
+      "weather": 0.25,
+      "proximity": 0.20,
+      "anomaly": 0.10,
+      "history": 0.10
+    },
+    "thresholds": {
+      "critical": 75.0,
+      "high": 50.0,
+      "medium": 25.0,
+      "low": 0.0
+    },
+    "source_modulations": {
+      "prescribed_burn": 0.75,
+      "agricultural": 0.85
+    },
+    "settlement_distance_critical_m": 1500.0,
+    "infra_distance_critical_m": 500.0
+  },
+  "incidents": {
+    "spatial_threshold_km": 2.0,
+    "temporal_window_hours": 24.0,
+    "merge_distance_km": 3.0,
+    "reopen_window_hours": 72.0,
+    "incompatible_pairs": [
+      ["volcanic", "agricultural"],
+      ["volcanic", "urban"],
+      ["industrial", "wildfire"]
+    ]
+  },
+  "alerts": {
+    "enabled_rules": [
+      "RULE_NEW_INCIDENT",
+      "RULE_INCIDENT_ESCALATED",
+      "RULE_INCIDENT_DEESCALATED",
+      "RULE_INCIDENT_REOPENED",
+      "RULE_INCIDENT_CLOSED",
+      "RULE_EXTREME_FRP"
+    ],
+    "extreme_frp_threshold": 100.0,
+    "flood_protection": {
+      "per_rule_cooldown_seconds": 900,
+      "per_incident_cooldown_seconds": 180,
+      "max_alerts_per_window": 5,
+      "window_seconds": 3600
+    },
+    "alertable_severities": ["critical", "high"]
+  },
+  "assets": {
+    "asset_categories": ["settlement", "infrastructure", "protected_area", "industrial"],
+    "static_assets_path": null,
+    "proximity_priority": "settlement"
+  },
+  "scenarios": {
+    "scenario_ids": [
+      "SCN-002-VEGETATION-EXPOSURE",
+      "SCN-003-WEAK-DETECTION",
+      "SCN-004-PROVIDER-DEGRADATION"
+    ],
+    "default_scenario_id": "SCN-002-VEGETATION-EXPOSURE"
+  }
+}

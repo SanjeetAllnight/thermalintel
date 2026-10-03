@@ -45,8 +45,33 @@ class FloodProtectionDecision:
 class FloodProtectionEngine:
     """Deterministic, local evaluator enforcing cooldown and flood limits."""
 
-    def __init__(self, config: Optional[FloodProtectionConfig] = None):
-        self.config = config or FloodProtectionConfig()
+    def __init__(
+        self,
+        config: Optional[FloodProtectionConfig] = None,
+        alert_config: Optional[Any] = None,
+    ):
+        if config is not None:
+            self.config = config
+        elif alert_config is not None and hasattr(alert_config, "flood_protection"):
+            fp = alert_config.flood_protection
+            self.config = FloodProtectionConfig(
+                per_rule_cooldown_seconds=fp.per_rule_cooldown_seconds,
+                per_incident_cooldown_seconds=fp.per_incident_cooldown_seconds,
+                max_alerts_per_window=fp.max_alerts_per_window,
+                window_seconds=fp.window_seconds,
+            )
+        else:
+            try:
+                from profiles.loader import get_active_profile
+                fp = get_active_profile().alerts.flood_protection
+                self.config = FloodProtectionConfig(
+                    per_rule_cooldown_seconds=fp.per_rule_cooldown_seconds,
+                    per_incident_cooldown_seconds=fp.per_incident_cooldown_seconds,
+                    max_alerts_per_window=fp.max_alerts_per_window,
+                    window_seconds=fp.window_seconds,
+                )
+            except Exception:
+                self.config = FloodProtectionConfig()
 
     def evaluate(
         self,

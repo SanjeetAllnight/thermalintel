@@ -8,7 +8,7 @@ Documents:
 """
 
 from enum import Enum
-from typing import Dict, Final
+from typing import Dict, Final, Optional, Any
 
 from services.api.schemas.common import SourceType, RiskLevel
 from services.intelligence.thresholds import (
@@ -92,17 +92,42 @@ RISK_THRESHOLD_MEDIUM: Final[float] = RISK_TIER_MEDIUM
 RISK_THRESHOLD_LOW: Final[float] = RISK_TIER_LOW
 
 
-def score_to_risk_level(score: float) -> RiskLevel:
+def score_to_risk_level(score: float, risk_config: Optional[Any] = None) -> RiskLevel:
     """Map composite risk score (0-100) to RiskLevel with deterministic boundaries."""
     clamped = max(0.0, min(100.0, score))
-    if clamped >= RISK_THRESHOLD_CRITICAL:
-        return RiskLevel.CRITICAL
-    elif clamped >= RISK_THRESHOLD_HIGH:
-        return RiskLevel.HIGH
-    elif clamped >= RISK_THRESHOLD_MEDIUM:
-        return RiskLevel.MEDIUM
-    else:
-        return RiskLevel.LOW
+    
+    if risk_config is not None and hasattr(risk_config, "thresholds"):
+        thresh = risk_config.thresholds
+        if clamped >= thresh.critical:
+            return RiskLevel.CRITICAL
+        elif clamped >= thresh.high:
+            return RiskLevel.HIGH
+        elif clamped >= thresh.medium:
+            return RiskLevel.MEDIUM
+        else:
+            return RiskLevel.LOW
+
+    try:
+        from profiles.loader import get_active_profile
+        active_thresh = get_active_profile().risk.thresholds
+        if clamped >= active_thresh.critical:
+            return RiskLevel.CRITICAL
+        elif clamped >= active_thresh.high:
+            return RiskLevel.HIGH
+        elif clamped >= active_thresh.medium:
+            return RiskLevel.MEDIUM
+        else:
+            return RiskLevel.LOW
+    except Exception:
+        # Fallback to frozen baseline thresholds if profiles subsystem uninitialized
+        if clamped >= RISK_THRESHOLD_CRITICAL:
+            return RiskLevel.CRITICAL
+        elif clamped >= RISK_THRESHOLD_HIGH:
+            return RiskLevel.HIGH
+        elif clamped >= RISK_THRESHOLD_MEDIUM:
+            return RiskLevel.MEDIUM
+        else:
+            return RiskLevel.LOW
 
 
 # ==============================================================================

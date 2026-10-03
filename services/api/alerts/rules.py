@@ -514,13 +514,34 @@ class ExtremeFrpRule(AlertRule):
         )
 
 
-def get_default_rules() -> List[AlertRule]:
-    """Return the standard suite of operational alert evaluation rules."""
-    return [
+def get_default_rules(alert_config: Optional[Any] = None) -> List[AlertRule]:
+    """Return the suite of operational alert evaluation rules configured for the active or given alert policy."""
+    cfg = alert_config
+    if cfg is None:
+        try:
+            from profiles.loader import get_active_profile
+            cfg = get_active_profile().alerts
+        except Exception:
+            cfg = None
+
+    extreme_thresh = 100.0
+    enabled_rule_ids = None
+
+    if cfg is not None:
+        if hasattr(cfg, "extreme_frp_threshold"):
+            extreme_thresh = cfg.extreme_frp_threshold
+        if hasattr(cfg, "enabled_rules") and cfg.enabled_rules:
+            enabled_rule_ids = set(cfg.enabled_rules)
+
+    all_rules = [
         NewIncidentRule(),
         EscalatedIncidentRule(),
         DeescalatedIncidentRule(),
         ReopenedIncidentRule(),
         ClosedIncidentRule(),
-        ExtremeFrpRule(),
+        ExtremeFrpRule(frp_threshold=extreme_thresh),
     ]
+
+    if enabled_rule_ids is not None:
+        return [r for r in all_rules if r.rule_id in enabled_rule_ids]
+    return all_rules

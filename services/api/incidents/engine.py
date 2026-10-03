@@ -70,21 +70,53 @@ class IncidentEngine:
         self,
         repository: Optional[Union[IncidentRepository, InMemoryIncidentRepository]] = None,
         aggregator: Optional[IncidentAggregator] = None,
-        spatial_threshold_km: float = 2.0,
-        temporal_window_hours: float = 24.0,
-        merge_distance_km: float = 3.0,
-        reopen_window_hours: float = 72.0,
+        spatial_threshold_km: Optional[float] = None,
+        temporal_window_hours: Optional[float] = None,
+        merge_distance_km: Optional[float] = None,
+        reopen_window_hours: Optional[float] = None,
+        profile: Optional[Union[str, Any]] = None,
+        incident_config: Optional[Any] = None,
     ):
         """Initialize engine with repository and correlation parameters."""
+        resolved_cfg = incident_config
+        if resolved_cfg is None and profile is not None:
+            if isinstance(profile, str):
+                from profiles.loader import load_profile_by_id
+                resolved_cfg = load_profile_by_id(profile).incidents
+            else:
+                resolved_cfg = profile.incidents
+
+        if resolved_cfg is None:
+            try:
+                from profiles.loader import get_active_profile
+                resolved_cfg = get_active_profile().incidents
+            except Exception:
+                resolved_cfg = None
+
+        self.incident_config = resolved_cfg
+
+        s_thresh = spatial_threshold_km if spatial_threshold_km is not None else (
+            resolved_cfg.spatial_threshold_km if resolved_cfg else 2.0
+        )
+        t_window = temporal_window_hours if temporal_window_hours is not None else (
+            resolved_cfg.temporal_window_hours if resolved_cfg else 24.0
+        )
+        m_dist = merge_distance_km if merge_distance_km is not None else (
+            resolved_cfg.merge_distance_km if resolved_cfg else 3.0
+        )
+        r_window = reopen_window_hours if reopen_window_hours is not None else (
+            resolved_cfg.reopen_window_hours if resolved_cfg else 72.0
+        )
+
         self.repository = repository or IncidentRepository()
         self.aggregator = aggregator or IncidentAggregator(
-            distance_threshold_km=spatial_threshold_km,
-            time_window_hours=temporal_window_hours,
+            distance_threshold_km=s_thresh,
+            time_window_hours=t_window,
         )
-        self.spatial_threshold_km = spatial_threshold_km
-        self.temporal_window_hours = temporal_window_hours
-        self.merge_distance_km = merge_distance_km
-        self.reopen_window_hours = reopen_window_hours
+        self.spatial_threshold_km = s_thresh
+        self.temporal_window_hours = t_window
+        self.merge_distance_km = m_dist
+        self.reopen_window_hours = r_window
 
     # -------------------------------------------------------------------------
     # Correlation & Ingestion Pipeline
@@ -407,14 +439,24 @@ class IncidentEngine:
             # 3. Classification compatibility check
             obs_src = obs.source_attributes.get("source_type")
             if obs_src and inc.current_classification != SourceType.UNKNOWN:
-                incompatible_pairs = {
-                    (SourceType.VOLCANIC, SourceType.AGRICULTURAL),
-                    (SourceType.VOLCANIC, SourceType.URBAN),
-                    (SourceType.INDUSTRIAL, SourceType.WILDFIRE),
-                }
-                pair = (obs_src, inc.current_classification)
-                reverse_pair = (inc.current_classification, obs_src)
-                if (pair in incompatible_pairs or reverse_pair in incompatible_pairs) and min_dist > 0.3:
+                if self.incident_config and hasattr(self.incident_config, "incompatible_pairs"):
+                    raw_incomp = self.incident_config.incompatible_pairs
+                    incomp_set = {
+                        (p[0].value if hasattr(p[0], "value") else str(p[0]),
+                         p[1].value if hasattr(p[1], "value") else str(p[1]))
+                        for p in raw_incomp
+                    }
+                else:
+                    incomp_set = {
+                        ("volcanic", "agricultural"),
+                        ("volcanic", "urban"),
+                        ("industrial", "wildfire"),
+                    }
+                obs_val = obs_src.value if hasattr(obs_src, "value") else str(obs_src)
+                inc_val = inc.current_classification.value if hasattr(inc.current_classification, "value") else str(inc.current_classification)
+                pair = (obs_val, inc_val)
+                reverse_pair = (inc_val, obs_val)
+                if (pair in incomp_set or reverse_pair in incomp_set) and min_dist > 0.3:
                     continue
 
             # Candidate match found: record score for deterministic ranking

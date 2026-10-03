@@ -83,17 +83,36 @@ def save_scenario_to_file(scenario: Scenario, path: Union[str, Path], indent: in
     logger.info("Saved scenario '%s' to %s", scenario.id, file_path)
 
 
-def list_available_scenarios(directory: Optional[Union[str, Path]] = None) -> List[Scenario]:
-    """Scan and load all scenario files in the given or default scenario data directory."""
+def list_available_scenarios(
+    directory: Optional[Union[str, Path]] = None,
+    profile: Optional[Union[str, Any]] = None,
+) -> List[Scenario]:
+    """Scan and load all scenario files in the given or default scenario data directory.
+    
+    If profile is specified, filters scenarios associated with that profile.
+    """
     target_dir = Path(directory).resolve() if directory else SCENARIOS_DATA_DIR
     if not target_dir.exists():
         return []
+
+    resolved_profile = None
+    if profile is not None:
+        if isinstance(profile, str):
+            from profiles.loader import load_profile_by_id
+            resolved_profile = load_profile_by_id(profile)
+        else:
+            resolved_profile = profile
 
     scenarios: List[Scenario] = []
     # Sort files for deterministic loading order
     for path in sorted(target_dir.glob("*.json")):
         try:
-            scenarios.append(load_scenario_from_file(path))
+            sc = load_scenario_from_file(path)
+            if resolved_profile and hasattr(resolved_profile, "scenarios"):
+                if resolved_profile.scenarios.scenario_ids:
+                    if sc.id not in resolved_profile.scenarios.scenario_ids:
+                        continue
+            scenarios.append(sc)
         except Exception as e:
             logger.warning("Failed to load scenario from %s: %e", path, e)
     return scenarios
