@@ -33,11 +33,11 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#1e293b"
+          stroke="#151922"
           strokeWidth={strokeWidth}
           fill="transparent"
         />
-        {/* Progress Arc */}
+        {/* Progress Arc with Neon Glow */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -49,16 +49,19 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
           strokeLinecap="round"
           fill="transparent"
           className="transition-all duration-1000 ease-out"
+          style={{
+            filter: `drop-shadow(0 0 6px ${meta.fillHex}80)`,
+          }}
         />
       </svg>
 
       {/* Central Score Display */}
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-xl font-black font-mono leading-none" style={{ color: meta.fillHex }}>
+        <span className="text-xl font-black font-mono leading-none tracking-tight" style={{ color: meta.fillHex, textShadow: `0 0 10px ${meta.fillHex}60` }}>
           {Math.round(score)}
         </span>
-        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">
-          / 100
+        <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 mt-0.5">
+          RISK
         </span>
       </div>
     </div>

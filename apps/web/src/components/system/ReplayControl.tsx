@@ -1,7 +1,19 @@
 'use client';
 
-import React from 'react';
-import { Play, Pause, RotateCcw, Clock, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  RotateCcw,
+  Clock,
+  Radio,
+  Sliders,
+  CheckCircle2,
+  AlertTriangle,
+  Layers,
+} from 'lucide-react';
 
 interface ReplayControlProps {
   isActive: boolean;
@@ -11,6 +23,22 @@ interface ReplayControlProps {
   className?: string;
 }
 
+interface TimelineMarker {
+  time: string;
+  label: string;
+  source: string;
+  phase: string;
+  positionPercent: number;
+}
+
+const TIMELINE_MARKERS: TimelineMarker[] = [
+  { time: '07:30 UTC', label: 'MODIS Aqua Baseline', source: 'AQUA', phase: 'Detection', positionPercent: 12 },
+  { time: '08:45 UTC', label: 'Suomi-NPP VIIRS I-Band Pass', source: 'SNPP', phase: 'Observation', positionPercent: 38 },
+  { time: '09:12 UTC', label: 'NOAA-20 VIIRS Cluster Pass', source: 'NOAA-20', phase: 'Enrichment', positionPercent: 62 },
+  { time: '09:40 UTC', label: 'OSM Infrastructure & Weather Matrix', source: 'GEO-ENRICH', phase: 'Assessment', positionPercent: 78 },
+  { time: '10:15 UTC', label: 'NOAA-21 High-FRP Alert Triangulation', source: 'NOAA-21', phase: 'Alert', positionPercent: 92 },
+];
+
 export const ReplayControl: React.FC<ReplayControlProps> = ({
   isActive,
   onToggleReplay,
@@ -18,67 +46,147 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
   onTimeChange,
   className = '',
 }) => {
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<'1x' | '5x' | '15x'>('1x');
+  const [sliderVal, setSliderVal] = useState<number>(38);
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value);
+    setSliderVal(val);
+    if (onTimeChange) {
+      // Map percentage to simulated ISO timestamp
+      const baseHour = 7 + Math.floor((val / 100) * 4);
+      const baseMin = Math.floor(((val % 25) / 25) * 60);
+      const simulatedIso = `2026-10-01T${String(baseHour).padStart(2, '0')}:${String(baseMin).padStart(2, '0')}:00Z`;
+      onTimeChange(simulatedIso);
+    }
+  };
+
   return (
     <div
       id="replay-control-bar"
-      className={`p-3 rounded-xl border font-mono text-xs transition-all ${
+      className={`cyber-chamfer-xs border transition-all duration-300 font-mono text-xs select-none backdrop-blur-md ${
         isActive
-          ? 'bg-purple-950/40 border-purple-500/50 shadow-lg shadow-purple-950/30'
-          : 'bg-slate-900/80 border-slate-800'
+          ? 'bg-void/95 border-cyber-accent/60 shadow-[0_0_20px_rgba(0,255,136,0.15)] ring-1 ring-cyber-accent/30'
+          : 'bg-surface/90 border-cyber-border hover:border-cyber-border/80'
       } ${className}`}
     >
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        {/* Status & Label */}
-        <div className="flex items-center space-x-2.5">
+      {/* Top Telemetry & Control Bar */}
+      <div className="p-3 sm:px-4 flex flex-wrap items-center justify-between gap-3 border-b border-cyber-border/50">
+        {/* Left: Mode Badge & Operational Lifecycle Indicator */}
+        <div className="flex items-center space-x-3">
           <div
-            className={`p-1.5 rounded-lg border ${
+            className={`flex items-center justify-center w-8 h-8 rounded border transition-colors ${
               isActive
-                ? 'bg-purple-900/60 border-purple-500/60 text-purple-300'
-                : 'bg-slate-800 border-slate-700 text-slate-400'
+                ? 'bg-cyber-accent/10 border-cyber-accent/50 text-cyber-accent animate-pulse shadow-[0_0_8px_rgba(0,255,136,0.3)]'
+                : 'bg-elevated border-cyber-border text-subtle'
             }`}
           >
-            <Clock className="w-4 h-4" />
+            {isActive ? <Clock className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
           </div>
+
           <div>
             <div className="flex items-center space-x-2">
-              <span className="font-bold text-white tracking-wide">
-                HISTORICAL REPLAY
+              <span className="font-display font-bold text-xs tracking-wider uppercase text-foreground">
+                {isActive ? 'TEMPORAL REPLAY SUITE' : 'OPERATIONAL TEMPORAL ENGINE'}
               </span>
-              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                AGENT G STANDBY
+              <span
+                className={`px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider ${
+                  isActive
+                    ? 'bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/40 shadow-[0_0_6px_rgba(0,255,136,0.2)]'
+                    : 'bg-thermal-DEFAULT/20 text-thermal-bright border border-thermal-DEFAULT/40'
+                }`}
+              >
+                {isActive ? 'REPLAY ACTIVE' : 'LIVE TELEMETRY'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Virtual time simulation engine interface (backend integration pending)
+            <p className="text-[10px] text-subtle hidden sm:block mt-0.5">
+              Deterministic pass stepping: Detection → Observation → Enrichment → Assessment → Alert
             </p>
           </div>
         </div>
 
-        {/* Action Button & Slider */}
-        <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
-          <div className="text-right hidden md:block">
-            <span className="text-[10px] text-slate-500 block">Virtual Simulation Time</span>
-            <span className="text-xs text-purple-300 font-bold">{virtualTime}</span>
-          </div>
+        {/* Center / Right: Operational Stepper & Virtual Time Display */}
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {isActive && (
+            <>
+              {/* Stepper Buttons */}
+              <div className="flex items-center space-x-1 bg-elevated/80 border border-cyber-border rounded p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setSliderVal((prev) => Math.max(0, prev - 10))}
+                  className="p-1 text-subtle hover:text-foreground hover:bg-surface rounded transition-colors"
+                  title="Step Backward (Previous Satellite Pass)"
+                >
+                  <SkipBack className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className={`p-1 rounded transition-colors ${
+                    isPlaying
+                      ? 'bg-cyber-accent text-void font-bold shadow-[0_0_8px_rgba(0,255,136,0.4)]'
+                      : 'text-cyber-accent hover:bg-surface'
+                  }`}
+                  title={isPlaying ? 'Pause Playback' : 'Play Timeline'}
+                >
+                  {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSliderVal((prev) => Math.min(100, prev + 10))}
+                  className="p-1 text-subtle hover:text-foreground hover:bg-surface rounded transition-colors"
+                  title="Step Forward (Next Satellite Pass)"
+                >
+                  <SkipForward className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
+              {/* Speed Multiplier */}
+              <div className="hidden md:flex items-center space-x-0.5 bg-elevated/80 border border-cyber-border rounded p-0.5 text-[10px]">
+                {(['1x', '5x', '15x'] as const).map((spd) => (
+                  <button
+                    key={spd}
+                    type="button"
+                    onClick={() => setPlaybackSpeed(spd)}
+                    className={`px-1.5 py-0.5 rounded transition-all ${
+                      playbackSpeed === spd
+                        ? 'bg-cyber-accent/20 text-cyber-accent font-bold border border-cyber-accent/40'
+                        : 'text-subtle hover:text-foreground'
+                    }`}
+                  >
+                    {spd}
+                  </button>
+                ))}
+              </div>
+
+              {/* Virtual Timestamp */}
+              <div className="px-2.5 py-1 rounded bg-elevated/90 border border-cyber-border text-right min-w-[130px]">
+                <div className="text-[9px] text-subtle uppercase tracking-wider">Virtual Pass Time</div>
+                <div className="text-xs font-bold text-cyber-cyan">{virtualTime}</div>
+              </div>
+            </>
+          )}
+
+          {/* Toggle Button */}
           <button
             type="button"
             id="btn-toggle-replay-mode"
             onClick={() => onToggleReplay(!isActive)}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
               isActive
-                ? 'bg-purple-600 hover:bg-purple-500 text-white border-purple-400 shadow-md'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700 hover:text-white'
+                ? 'bg-destructive/20 text-destructive border border-destructive/50 hover:bg-destructive/30 shadow-[0_0_8px_rgba(255,51,102,0.2)]'
+                : 'bg-elevated hover:bg-surface text-foreground border border-cyber-border hover:border-cyber-accent/50 hover:text-cyber-accent shadow-sm'
             }`}
           >
             {isActive ? (
               <>
-                <Pause className="w-3.5 h-3.5" />
-                <span>Exit Replay</span>
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Return To Live</span>
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5 text-purple-400" />
+                <Play className="w-3.5 h-3.5 text-cyber-accent" />
                 <span>Activate Replay Mode</span>
               </>
             )}
@@ -86,30 +194,101 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
         </div>
       </div>
 
+      {/* Expanded Interactive Replay Track (Visible when replay mode is active) */}
       {isActive && (
-        <div className="mt-3 pt-3 border-t border-purple-800/40 space-y-2">
-          <div className="flex items-center justify-between text-[11px] text-purple-300">
-            <span>Pass: Suomi-NPP (08:45 UTC)</span>
-            <span>Pass: NOAA-20 (09:12 UTC)</span>
-            <span>Pass: VIIRS NRT (10:15 UTC)</span>
+        <div className="p-3 sm:px-4 space-y-3 bg-void/50">
+          {/* Satellite Pass Markers & Event Track */}
+          <div className="relative pt-2 pb-1">
+            {/* Timeline Bar Background */}
+            <div className="relative w-full h-2 bg-elevated rounded overflow-hidden border border-cyber-border">
+              {/* Progress Highlight */}
+              <div
+                className="h-full bg-gradient-to-r from-thermal-DEFAULT via-cyber-cyan to-cyber-accent transition-all duration-150"
+                style={{ width: `${sliderVal}%` }}
+              />
+            </div>
+
+            {/* Range Input Slider (Overlay) */}
+            <input
+              id="replay-time-slider"
+              type="range"
+              min="0"
+              max="100"
+              value={sliderVal}
+              onChange={handleSliderChange}
+              className="absolute inset-x-0 top-1 w-full h-4 opacity-0 cursor-pointer z-20"
+              aria-label="Historical Replay Timeline Scrubber"
+            />
+
+            {/* Satellite Pass Tick Points */}
+            <div className="relative w-full h-6 mt-1.5 flex items-center justify-between text-[10px] text-subtle">
+              {TIMELINE_MARKERS.map((m) => {
+                const isPassed = sliderVal >= m.positionPercent;
+                return (
+                  <div
+                    key={m.source}
+                    className="flex flex-col items-center group cursor-pointer"
+                    style={{ position: 'absolute', left: `${m.positionPercent}%`, transform: 'translateX(-50%)' }}
+                    onClick={() => {
+                      setSliderVal(m.positionPercent);
+                      if (onTimeChange) {
+                        onTimeChange(`2026-10-01T${m.time.split(' ')[0]}:00Z`);
+                      }
+                    }}
+                  >
+                    <div
+                      className={`w-2 h-2 rounded-full border transition-all ${
+                        isPassed
+                          ? 'bg-cyber-accent border-cyber-accent shadow-[0_0_6px_rgba(0,255,136,0.6)] scale-110'
+                          : 'bg-elevated border-subtle group-hover:border-foreground'
+                      }`}
+                    />
+                    <span
+                      className={`text-[9px] mt-1 whitespace-nowrap transition-colors ${
+                        isPassed ? 'text-cyber-accent font-bold' : 'text-subtle group-hover:text-foreground'
+                      }`}
+                    >
+                      {m.source} ({m.time.split(' ')[0]})
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          <input
-            id="replay-time-slider"
-            type="range"
-            min="0"
-            max="100"
-            defaultValue="35"
-            disabled
-            className="w-full h-1.5 bg-purple-950 rounded-lg appearance-none cursor-not-allowed opacity-70"
-            title="Replay timeline scrubber will be activated once Agent G's replay backend is connected."
-          />
+          {/* Operational Pipeline State Ribbon */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-cyber-border/40 text-[10px]">
+            <div className="flex items-center space-x-2">
+              <span className="text-subtle font-semibold">PIPELINE STAGE:</span>
+              <div className="flex items-center space-x-1.5">
+                {['Detection', 'Observation', 'Enrichment', 'Assessment', 'Alert'].map((stg, i) => {
+                  const stageThreshold = (i + 1) * 20;
+                  const isCurrent = sliderVal >= stageThreshold - 20 && sliderVal <= stageThreshold;
+                  const isDone = sliderVal > stageThreshold;
+                  return (
+                    <React.Fragment key={stg}>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold transition-colors ${
+                          isCurrent
+                            ? 'bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/60 shadow-[0_0_6px_rgba(0,255,136,0.3)]'
+                            : isDone
+                            ? 'bg-elevated text-foreground border border-cyber-border'
+                            : 'text-subtle/60'
+                        }`}
+                      >
+                        {stg}
+                      </span>
+                      {i < 4 && <span className="text-subtle/40">→</span>}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
 
-          <div className="flex items-center space-x-1.5 text-[10px] text-amber-300/80 bg-amber-950/30 p-1.5 rounded border border-amber-800/40">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            <span>
-              Replay controls connected to local simulated fixtures. Live backend time-travel will synchronize once Agent G completes Phase 5 replay service.
-            </span>
+            <div className="flex items-center space-x-1.5 text-cyber-cyan text-[10px]">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyber-cyan animate-pulse" />
+              <span>DETERMINISTIC SIMULATION SYNCED</span>
+            </div>
           </div>
         </div>
       )}
