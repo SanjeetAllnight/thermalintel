@@ -1,0 +1,105 @@
+{
+  "type": "FeatureCollection",
+  "name": "IndustrialSafetyAssets",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "ind-facility-01",
+      "properties": {
+        "name": "Pasadena Refining Hydrocracker Unit",
+        "category": "industrial",
+        "feature_type": "refinery_unit",
+        "hazard_tier": "critical",
+        "tags": {
+          "industrial": "refinery",
+          "process": "hydrocracker",
+          "operator": "Gulf Coast Energy"
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-95.1252, 29.7421]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ind-flare-01",
+      "properties": {
+        "name": "Elevated Process Flare Stack Alpha",
+        "category": "industrial",
+        "feature_type": "flare_stack",
+        "hazard_tier": "high",
+        "tags": {
+          "industrial": "flare",
+          "max_design_frp_mw": "35.0",
+          "height_m": "45.0"
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-95.1248, 29.7428]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ind-tank-01",
+      "properties": {
+        "name": "Crude Distillate Tank Farm Battery B",
+        "category": "industrial",
+        "feature_type": "tank_farm",
+        "hazard_tier": "critical",
+        "tags": {
+          "industrial": "storage_tank",
+          "substance": "crude_oil",
+          "containment_berm": "reinforced_concrete"
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-95.1235, 29.7415]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ind-infra-01",
+      "properties": {
+        "name": "Ethylene Feeder Pipeline Manifold",
+        "category": "infrastructure",
+        "feature_type": "pipeline_manifold",
+        "hazard_tier": "high",
+        "tags": {
+          "pipeline": "subsurface",
+          "pressure_psi": "1200"
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-95.1265, 29.7432]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ind-muster-01",
+      "properties": {
+        "name": "Primary Worker Evacuation Muster Point 1",
+        "category": "settlement",
+        "feature_type": "muster_station",
+        "hazard_tier": "low",
+        "tags": {
+          "emergency": "muster_point",
+          "capacity": "250"
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-95.1285, 29.7405]
+      }
+    }
+  ]
+}

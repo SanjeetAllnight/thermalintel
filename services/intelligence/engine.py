@@ -51,16 +51,38 @@ class ThermalIntelligenceEngine:
         baseline_frp_std: float = DEFAULT_BASELINE_FRP_STD,
         sigma_threshold: float = ANOMALY_SIGMA_THRESHOLD,
         random_state: int = RANDOM_STATE_PINNED,
+        profile: Optional[Union[str, Any]] = None,
+        classifier: Optional[ThermalSourceClassifier] = None,
+        anomaly_detector: Optional[AnomalyDetector] = None,
+        risk_assessor: Optional[RiskAssessor] = None,
     ):
         self.model_version = model_version
-        self.classifier = ThermalSourceClassifier(model_version=model_version)
-        self.anomaly_detector = AnomalyDetector(
+
+        resolved_profile = None
+        if profile is not None:
+            if isinstance(profile, str):
+                from profiles.loader import load_profile_by_id
+                resolved_profile = load_profile_by_id(profile)
+            else:
+                resolved_profile = profile
+        self.profile = resolved_profile
+
+        rules_cfg = resolved_profile.rules if resolved_profile else None
+        tax_cfg = resolved_profile.taxonomy if resolved_profile else None
+        risk_cfg = resolved_profile.risk if resolved_profile else None
+
+        self.classifier = classifier or ThermalSourceClassifier(
+            model_version=model_version,
+            rules_config=rules_cfg,
+            taxonomy_config=tax_cfg,
+        )
+        self.anomaly_detector = anomaly_detector or AnomalyDetector(
             baseline_frp_mean=baseline_frp_mean,
             baseline_frp_std=baseline_frp_std,
             sigma_threshold=sigma_threshold,
             random_state=random_state,
         )
-        self.risk_assessor = RiskAssessor()
+        self.risk_assessor = risk_assessor or RiskAssessor(risk_config=risk_cfg)
         self.synthesizer = AssessmentSynthesizer(
             classifier=self.classifier,
             anomaly_detector=self.anomaly_detector,

@@ -73,17 +73,35 @@ class ReplayPipeline:
         aggregator: Optional[IncidentAggregator] = None,
         alert_generator: Optional[AlertGenerator] = None,
         seed: int = 42,
+        profile: Optional[Union[str, Any]] = None,
     ):
+        resolved_profile = None
+        if profile is not None:
+            if isinstance(profile, str):
+                from profiles.loader import load_profile_by_id
+                resolved_profile = load_profile_by_id(profile)
+            else:
+                resolved_profile = profile
+        self.profile = resolved_profile
+
+        spatial_thresh = resolved_profile.incidents.spatial_threshold_km if resolved_profile else 2.0
+        temp_window = resolved_profile.incidents.temporal_window_hours if resolved_profile else 24.0
+        alert_cfg = resolved_profile.alerts if resolved_profile else None
+
         self.clock = clock or SimulatedClock(now_utc_iso())
         self.seed = seed
         self.intelligence_engine = intelligence_engine or ThermalIntelligenceEngine(
-            random_state=seed
+            profile=resolved_profile,
+            random_state=seed,
         )
         self.aggregator = aggregator or IncidentAggregator(
-            distance_threshold_km=2.0,
-            time_window_hours=24.0,
+            distance_threshold_km=spatial_thresh,
+            time_window_hours=temp_window,
         )
-        self.alert_generator = alert_generator or AlertGenerator(include_medium=True)
+        self.alert_generator = alert_generator or AlertGenerator(
+            include_medium=True,
+            alert_config=alert_cfg,
+        )
         self.alert_deduplicator = AlertDeduplicator()
 
         # Cumulative persistent state across steps
@@ -361,6 +379,17 @@ class ReplayPipeline:
                 obs.latitude, obs.longitude, inc.centroid_latitude, inc.centroid_longitude
             )
             if dist_km <= self.aggregator.distance_threshold_km:
+                if self.profile and hasattr(self.profile, "incidents"):
+                    obs_src = obs.source_attributes.get("source_type", obs.source_attributes.get("expected_source"))
+                    if obs_src and inc.current_classification != SourceType.UNKNOWN:
+                        incomp_set = {
+                            (p[0].lower(), p[1].lower())
+                            for p in self.profile.incidents.incompatible_pairs
+                        }
+                        pair = (str(obs_src).lower(), inc.current_classification.value.lower())
+                        reverse_pair = (pair[1], pair[0])
+                        if (pair in incomp_set or reverse_pair in incomp_set) and dist_km > 0.3:
+                            continue
                 return inc
         return None
 

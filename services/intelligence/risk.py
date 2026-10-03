@@ -24,7 +24,7 @@ Missing Data Handling:
 """
 
 import math
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from services.api.schemas.common import RiskLevel, SourceType
 from services.api.schemas.intelligence import RiskAssessment, AnomalyResult
 from services.api.schemas.v2.assessment import RiskAssessmentResult
@@ -52,17 +52,38 @@ class RiskAssessor:
 
     def __init__(
         self,
-        weight_frp: float = DEFAULT_WEIGHT_FRP,
-        weight_weather: float = DEFAULT_WEIGHT_WEATHER,
-        weight_proximity: float = DEFAULT_WEIGHT_PROXIMITY,
-        weight_anomaly: float = DEFAULT_WEIGHT_ANOMALY,
-        weight_history: float = DEFAULT_WEIGHT_HISTORY,
+        risk_config: Optional[Any] = None,
+        weight_frp: Optional[float] = None,
+        weight_weather: Optional[float] = None,
+        weight_proximity: Optional[float] = None,
+        weight_anomaly: Optional[float] = None,
+        weight_history: Optional[float] = None,
     ):
-        self.weight_frp = float(weight_frp)
-        self.weight_weather = float(weight_weather)
-        self.weight_proximity = float(weight_proximity)
-        self.weight_anomaly = float(weight_anomaly)
-        self.weight_history = float(weight_history)
+        self._risk_config = risk_config
+        cfg = self.risk_config
+        if cfg is not None and hasattr(cfg, "weights"):
+            w = cfg.weights
+            self.weight_frp = float(weight_frp if weight_frp is not None else w.frp)
+            self.weight_weather = float(weight_weather if weight_weather is not None else w.weather)
+            self.weight_proximity = float(weight_proximity if weight_proximity is not None else w.proximity)
+            self.weight_anomaly = float(weight_anomaly if weight_anomaly is not None else w.anomaly)
+            self.weight_history = float(weight_history if weight_history is not None else w.history)
+        else:
+            self.weight_frp = float(weight_frp if weight_frp is not None else DEFAULT_WEIGHT_FRP)
+            self.weight_weather = float(weight_weather if weight_weather is not None else DEFAULT_WEIGHT_WEATHER)
+            self.weight_proximity = float(weight_proximity if weight_proximity is not None else DEFAULT_WEIGHT_PROXIMITY)
+            self.weight_anomaly = float(weight_anomaly if weight_anomaly is not None else DEFAULT_WEIGHT_ANOMALY)
+            self.weight_history = float(weight_history if weight_history is not None else DEFAULT_WEIGHT_HISTORY)
+
+    @property
+    def risk_config(self) -> Any:
+        if self._risk_config is not None:
+            return self._risk_config
+        try:
+            from profiles.loader import get_active_profile
+            return get_active_profile().risk
+        except Exception:
+            return None
 
     def assess_risk(
         self,
@@ -219,7 +240,11 @@ class RiskAssessor:
         composite += confidence_delta
 
         # Source-specific operational modulation
-        if source_type == SourceType.PRESCRIBED_BURN:
+        cfg = self.risk_config
+        st_key = source_type.value if hasattr(source_type, "value") else str(source_type)
+        if cfg is not None and hasattr(cfg, "source_modulations") and cfg.source_modulations and st_key in cfg.source_modulations:
+            composite *= cfg.source_modulations[st_key]
+        elif source_type == SourceType.PRESCRIBED_BURN:
             # Prescribed burns operate under active perimeter containment plans
             composite *= 0.75
         elif source_type == SourceType.AGRICULTURAL:
@@ -227,7 +252,7 @@ class RiskAssessor:
 
         # Clamp strictly to [0.0, 100.0]
         composite = round(min(RISK_SCORE_MAX, max(RISK_SCORE_MIN, _safe_float(composite))), 1)
-        risk_level = score_to_risk_level(composite)
+        risk_level = score_to_risk_level(composite, risk_config=self.risk_config)
 
         # Clamp individual components strictly to [0.0, 100.0]
         frp_comp_clamped = min(100.0, max(0.0, frp_comp))

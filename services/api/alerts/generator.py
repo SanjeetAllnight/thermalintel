@@ -28,16 +28,19 @@ class AlertGenerator:
         self,
         include_medium: bool = False,
         rules: Optional[List[AlertRule]] = None,
+        alert_config: Optional[Any] = None,
     ):
         """Initialize generator.
         
         Args:
             include_medium: If True, also generates informational/advisory alerts for medium risk events.
             rules: Optional custom suite of AlertRule instances for V2 transition evaluation.
+            alert_config: Optional AlertProfileConfig to configure thresholds and active rules.
         """
         self.include_medium = include_medium
         self.deduplicator = AlertDeduplicator()
-        self.rules = rules if rules is not None else get_default_rules()
+        self.alert_config = alert_config
+        self.rules = rules if rules is not None else get_default_rules(alert_config=alert_config)
 
     def generate_from_transition(
         self,

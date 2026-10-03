@@ -86,10 +86,12 @@ app.include_router(api_router)
 @app.get("/")
 def root():
     scheduler = get_scheduler()
+    from profiles.loader import get_active_profile_id
     return {
         "service": "ThermalIntel API",
         "version": cfg.version,
         "status": "online",
+        "active_profile": get_active_profile_id(),
         "docs": "/docs",
         "redoc": "/redoc",
         "operational_probes": [
