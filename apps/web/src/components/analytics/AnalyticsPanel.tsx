@@ -98,33 +98,21 @@ export const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('sources')}
-            className={`px-2.5 py-1 rounded transition-all ${
-              activeTab === 'sources'
-                ? 'bg-slate-800 text-cyan-400 font-bold shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
+            className={`px-2.5 py-1 rounded transition-all ${ activeTab === 'sources' ? 'bg-slate-800 text-cyan-400 font-bold shadow' : 'text-slate-400 hover:text-white' }`}
           >
             Sources Breakdown
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('risk')}
-            className={`px-2.5 py-1 rounded transition-all ${
-              activeTab === 'risk'
-                ? 'bg-slate-800 text-red-400 font-bold shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
+            className={`px-2.5 py-1 rounded transition-all ${ activeTab === 'risk' ? 'bg-slate-800 text-red-400 font-bold shadow' : 'text-slate-400 hover:text-white' }`}
           >
             Risk Tiers
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('frp')}
-            className={`px-2.5 py-1 rounded transition-all ${
-              activeTab === 'frp'
-                ? 'bg-slate-800 text-amber-400 font-bold shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
+            className={`px-2.5 py-1 rounded transition-all ${ activeTab === 'frp' ? 'bg-slate-800 text-amber-400 font-bold shadow' : 'text-slate-400 hover:text-white' }`}
           >
             Peak FRP (MW)
           </button>

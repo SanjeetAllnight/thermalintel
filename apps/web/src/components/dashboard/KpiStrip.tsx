@@ -29,10 +29,10 @@ export const KpiStrip: React.FC<KpiStripProps> = ({
   return (
     <section id="kpi-summary-cards" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 select-none">
       {/* 1. Total Active Anomalies */}
-      <div className="p-2.5 sm:p-3 rounded bg-surface/90 border border-border-color shadow-lg flex flex-col justify-between relative overflow-hidden group hover:border-thermal-orange/60 transition-all cyber-chamfer-xs">
+      <div className="p-2.5 sm:p-3 rounded bg-surface/90 shadow-lg flex flex-col justify-between relative overflow-hidden group hover:border-thermal-orange/60 transition-all">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400">Active Hotspots</span>
-          <div className="w-6 h-6 rounded bg-elevated border border-border-color flex items-center justify-center text-slate-300">
+          <div className="w-6 h-6 rounded bg-elevated flex items-center justify-center text-slate-300">
             <Flame className="w-3.5 h-3.5 text-thermal-orange" />
           </div>
         </div>
@@ -41,7 +41,7 @@ export const KpiStrip: React.FC<KpiStripProps> = ({
             {loading ? '—' : totalHotspots}
           </span>
           {activeFilterCount !== undefined && activeFilterCount !== totalHotspots && (
-            <span className="text-[10px] font-mono text-cyber-cyan">
+            <span className="text-[10px] font-mono text-blue-400">
               ({activeFilterCount} filtered)
             </span>
           )}
@@ -54,7 +54,7 @@ export const KpiStrip: React.FC<KpiStripProps> = ({
       </div>
 
       {/* 2. Critical Risk Events */}
-      <div className="p-2.5 sm:p-3 rounded bg-surface/90 border border-red-900/50 shadow-lg shadow-red-950/20 flex flex-col justify-between relative overflow-hidden group hover:border-red-500/80 transition-all cyber-chamfer-xs">
+      <div className="p-2.5 sm:p-3 rounded bg-surface/90 border border-red-900/50 shadow-lg shadow-red-950/20 flex flex-col justify-between relative overflow-hidden group hover:border-red-500/80 transition-all">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-mono uppercase tracking-wider text-red-400 font-bold">Critical Priority</span>
           <div className="w-6 h-6 rounded bg-red-950/80 border border-red-800/80 flex items-center justify-center text-red-400">
@@ -77,7 +77,7 @@ export const KpiStrip: React.FC<KpiStripProps> = ({
       </div>
 
       {/* 3. High Risk Events */}
-      <div className="p-2.5 sm:p-3 rounded bg-surface/90 border border-amber-900/50 shadow-lg shadow-amber-950/20 flex flex-col justify-between relative overflow-hidden group hover:border-amber-500/80 transition-all cyber-chamfer-xs">
+      <div className="p-2.5 sm:p-3 rounded bg-surface/90 border border-amber-900/50 shadow-lg shadow-amber-950/20 flex flex-col justify-between relative overflow-hidden group hover:border-amber-500/80 transition-all">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400 font-bold">High Risk Hotspots</span>
           <div className="w-6 h-6 rounded bg-amber-950/80 border border-amber-800/80 flex items-center justify-center text-amber-400">
@@ -100,15 +100,15 @@ export const KpiStrip: React.FC<KpiStripProps> = ({
       </div>
 
       {/* 4. Mean Radiative Power (MW) */}
-      <div className="p-2.5 sm:p-3 rounded bg-surface/90 border border-border-color shadow-lg flex flex-col justify-between relative overflow-hidden group hover:border-cyber-cyan/60 transition-all cyber-chamfer-xs">
+      <div className="p-2.5 sm:p-3 rounded bg-surface/90 shadow-lg flex flex-col justify-between relative overflow-hidden group hover:border-blue-400/60 transition-all">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-mono uppercase tracking-wider text-cyber-cyan font-semibold">Mean Radiative Power</span>
-          <div className="w-6 h-6 rounded bg-cyan-950/80 border border-cyan-800/60 flex items-center justify-center text-cyber-cyan">
-            <Zap className="w-3.5 h-3.5 text-cyber-cyan" />
+          <span className="text-[11px] font-mono uppercase tracking-wider text-blue-400 font-semibold">Mean Radiative Power</span>
+          <div className="w-6 h-6 rounded bg-cyan-950/80 border border-cyan-800/60 flex items-center justify-center text-blue-400">
+            <Zap className="w-3.5 h-3.5 text-blue-400" />
           </div>
         </div>
         <div className="mt-1 flex items-baseline space-x-2">
-          <span className="text-xl sm:text-2xl font-black text-cyber-cyan font-mono tracking-tight">
+          <span className="text-xl sm:text-2xl font-black text-blue-400 font-mono tracking-tight">
             {loading ? '—' : meanFrp}
           </span>
         </div>
@@ -116,11 +116,11 @@ export const KpiStrip: React.FC<KpiStripProps> = ({
           <span>Peak: <strong className="text-slate-300">{peakFrp}</strong></span>
           <span className="text-slate-400">Convective FRP</span>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-cyber-cyan to-transparent opacity-80" />
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent opacity-80" />
       </div>
 
       {/* 5. Active Alerts */}
-      <div className="p-2.5 sm:p-3 rounded bg-surface/90 border border-rose-900/50 shadow-lg shadow-rose-950/20 col-span-2 sm:col-span-1 flex flex-col justify-between relative overflow-hidden group hover:border-rose-500/80 transition-all cyber-chamfer-xs">
+      <div className="p-2.5 sm:p-3 rounded bg-surface/90 border border-rose-900/50 shadow-lg shadow-rose-950/20 col-span-2 sm:col-span-1 flex flex-col justify-between relative overflow-hidden group hover:border-rose-500/80 transition-all">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-mono uppercase tracking-wider text-rose-400 font-bold">Operational Alerts</span>
           <div className="w-6 h-6 rounded bg-rose-950/80 border border-rose-800/80 flex items-center justify-center text-rose-400">

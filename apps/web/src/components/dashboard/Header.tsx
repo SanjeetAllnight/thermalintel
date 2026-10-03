@@ -57,20 +57,20 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header
       id="operational-header"
-      className="border-b border-border-color bg-void/95 backdrop-blur-md px-3 sm:px-5 py-2 sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 shadow-2xl relative"
+      className="border-b border-subtle bg-void/95 backdrop-blur-md px-3 sm:px-5 py-2 sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 shadow-2xl relative"
     >
       {/* Brand & Mission Title */}
       <div className="flex items-center space-x-3">
-        <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-thermal-orange via-thermal-flame to-red-600 shadow-md shadow-thermal-orange/30 border border-orange-400/40 cyber-chamfer-xs">
+        <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-thermal-orange">
           <Flame className="w-4 h-4 text-white" aria-hidden="true" />
-          <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyber-green border border-void motion-safe:animate-ping" />
+          <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 border-2 border-void" />
         </div>
         <div>
           <div className="flex items-center space-x-2">
-            <span className="text-sm sm:text-base font-black tracking-wider uppercase text-white font-mono cyber-glitch" data-text="ThermalIntel">
+            <span className="text-sm sm:text-base font-black tracking-wider uppercase text-white font-mono" data-text="ThermalIntel">
               <span>Thermal</span><span className="text-thermal-orange">Intel</span>
             </span>
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-surface text-cyan-300 border border-border-color font-bold tracking-wider cyber-chamfer-xs">
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-surface text-cyan-300 font-bold tracking-wider">
               OPERATIONAL COMMAND
             </span>
           </div>
@@ -79,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
             {currentTimeUtc && (
               <>
                 <span className="text-slate-600 hidden md:inline">•</span>
-                <span className="text-cyber-cyan flex items-center gap-1 font-bold">
+                <span className="text-blue-400 flex items-center gap-1 font-bold">
                   <Clock className="w-3 h-3" />
                   {currentTimeUtc}
                 </span>
@@ -90,8 +90,8 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Center Controls: Monitoring Region Selector */}
-      <div className="hidden lg:flex items-center space-x-2 px-3 py-1 rounded bg-surface/90 border border-border-color text-xs font-mono cyber-chamfer-xs">
-        <Satellite className="w-3.5 h-3.5 text-cyber-cyan" aria-hidden="true" />
+      <div className="hidden lg:flex items-center space-x-2 px-3 py-1 rounded bg-surface/90 text-xs font-mono">
+        <Satellite className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
         <label htmlFor="select-monitoring-region" className="text-slate-400 font-medium text-[11px] uppercase tracking-wider">
           Zone:
         </label>
@@ -112,19 +112,15 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right Controls: Telemetry Mode, System Health & Sync Action */}
       <div className="flex items-center space-x-2 sm:space-x-2.5">
         {/* System Mode Preference Switcher (Auto / Demo / Replay) */}
-        <div className="flex items-center rounded bg-surface p-0.5 border border-border-color text-xs font-mono cyber-chamfer-xs">
+        <div className="flex items-center rounded bg-surface p-0.5 text-xs font-mono">
           <button
             type="button"
             id="btn-mode-auto"
             onClick={() => onModeChange('auto')}
             title="Auto-detect API or fallback to local demo data"
-            className={`flex items-center space-x-1.5 px-2 py-0.5 rounded transition-all ${
-              modePreference === 'auto'
-                ? 'bg-elevated text-cyber-cyan shadow-sm font-bold border border-cyber-cyan/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            className={`flex items-center space-x-1.5 px-2 py-0.5 rounded transition-all ${ modePreference === 'auto' ? 'bg-elevated text-blue-400 shadow-sm font-bold border border-blue-400/30' : 'text-slate-400 hover:text-slate-200' }`}
           >
-            <Radio className="w-3 h-3 text-cyber-cyan" aria-hidden="true" />
+            <Radio className="w-3 h-3 text-blue-400" aria-hidden="true" />
             <span className="text-[10px] uppercase">Auto</span>
           </button>
           <button
@@ -132,11 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
             id="btn-mode-demo"
             onClick={() => onModeChange('demo')}
             title="Force deterministic local demo simulation"
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded transition-all ${
-              modePreference === 'demo'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm font-bold'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            className={`flex items-center space-x-1 px-2 py-0.5 rounded transition-all ${ modePreference === 'demo' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm font-bold' : 'text-slate-400 hover:text-slate-200' }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
             <span className="text-[10px] uppercase">Demo</span>
@@ -155,15 +147,11 @@ export const Header: React.FC<HeaderProps> = ({
           type="button"
           id="btn-source-health-modal"
           onClick={() => setShowHealthModal(!showHealthModal)}
-          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded bg-surface hover:bg-elevated border text-xs font-mono transition-colors cyber-chamfer-xs cursor-pointer ${
-            showHealthModal
-              ? 'border-cyber-cyan text-cyber-cyan shadow-[0_0_8px_rgba(0,212,255,0.3)]'
-              : 'border-border-color text-slate-300'
-          }`}
+          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded bg-surface hover:bg-elevated border text-xs font-mono transition-colors cursor-pointer ${ showHealthModal ? 'border-blue-400 text-blue-400 shadow-sm' : 'border-subtle text-slate-300' }`}
           title="Inspect Telemetry Ingestion Source Health"
           aria-expanded={showHealthModal}
         >
-          <Activity className="w-3.5 h-3.5 text-cyber-cyan" />
+          <Activity className="w-3.5 h-3.5 text-blue-400" />
           <span className="hidden sm:inline text-[11px] uppercase tracking-wider">Sources</span>
         </button>
 
@@ -173,7 +161,7 @@ export const Header: React.FC<HeaderProps> = ({
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          className="flex items-center space-x-1.5 px-3 py-1 text-xs font-bold font-mono rounded bg-gradient-to-r from-thermal-orange to-red-600 hover:from-orange-500 hover:to-red-500 active:scale-95 disabled:opacity-50 text-white transition-all shadow-md shadow-thermal-orange/25 border border-orange-400/40 cursor-pointer cyber-chamfer-xs"
+          className="flex items-center space-x-1.5 px-3 py-1 text-xs font-bold font-mono rounded bg-thermal-orange hover:bg-orange-500 active:scale-95 disabled:opacity-50 text-white transition-all shadow-sm cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           <span className="hidden sm:inline uppercase tracking-wider">

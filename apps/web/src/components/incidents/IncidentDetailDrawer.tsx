@@ -145,12 +145,12 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Incident Detail Dossier"
-      className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-void/98 text-slate-100 border-l border-border-color shadow-2xl backdrop-blur-2xl flex flex-col transition-all duration-300 ease-in-out select-none"
+      className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-void/98 text-slate-100 border-l border-subtle shadow-2xl backdrop-blur-2xl flex flex-col transition-all duration-300 ease-in-out select-none"
     >
       {/* Top Fixed Header with HUD styling */}
-      <div className="p-3.5 sm:p-4 border-b border-border-color bg-surface/95 flex items-center justify-between gap-3 relative">
+      <div className="p-3.5 sm:p-4 border-b border-subtle bg-surface/95 flex items-center justify-between gap-3 relative">
         <div className="flex items-center space-x-3">
-          <div className="p-2 rounded bg-elevated border border-border-color text-lg cyber-chamfer-xs flex items-center justify-center">
+          <div className="p-2 rounded bg-elevated text-lg flex items-center justify-center">
             {sourceMeta.icon}
           </div>
           <div>
@@ -160,14 +160,14 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
               </span>
               {hotspot && (
                 <span
-                  className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded flex items-center gap-1 cyber-chamfer-xs ${statusMeta.badgeBg}`}
+                  className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${statusMeta.badgeBg}`}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotColor}`} />
                   {statusMeta.label}
                 </span>
               )}
               {hotspot?.is_anomaly && (
-                <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-800 rounded cyber-chamfer-xs">
+                <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-800 rounded">
                   ANOMALY
                 </span>
               )}
@@ -186,7 +186,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
             <button
               type="button"
               onClick={() => onFocusMap(hotspot.latitude, hotspot.longitude)}
-              className="p-1.5 rounded bg-surface hover:bg-elevated text-cyber-cyan border border-border-color text-xs font-mono transition-all cyber-chamfer-xs cursor-pointer"
+              className="p-1.5 rounded bg-surface hover:bg-elevated text-blue-400 text-xs font-mono transition-all cursor-pointer"
               title="Center Map on Anomaly Centroid"
               aria-label="Center Map"
             >
@@ -197,18 +197,18 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
           <button
             type="button"
             onClick={handleCopyCoords}
-            className="p-1.5 rounded bg-surface hover:bg-elevated text-slate-300 hover:text-white border border-border-color text-xs font-mono transition-all cyber-chamfer-xs cursor-pointer"
+            className="p-1.5 rounded bg-surface hover:bg-elevated text-slate-300 hover:text-white text-xs font-mono transition-all cursor-pointer"
             title="Copy Latitude/Longitude Coordinates"
             aria-label="Copy Coordinates"
           >
-            {copiedCoords ? <Check className="w-4 h-4 text-cyber-green" /> : <Copy className="w-4 h-4" />}
+            {copiedCoords ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
           </button>
 
           <button
             id="btn-close-drawer"
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded bg-surface hover:bg-elevated text-slate-400 hover:text-white border border-border-color transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-cyber-cyan focus-visible:outline-none cyber-chamfer-xs"
+            className="p-1.5 rounded bg-surface hover:bg-elevated text-slate-400 hover:text-white transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none"
             title="Close Drawer (ESC)"
             aria-label="Close Incident Dossier"
           >
@@ -222,7 +222,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
         {/* Loading State */}
         {loading && (
           <div className="p-12 text-center space-y-3 text-slate-400" role="status">
-            <Radio className="w-8 h-8 mx-auto text-cyber-cyan animate-spin" aria-hidden="true" />
+            <Radio className="w-8 h-8 mx-auto text-blue-400 animate-spin" aria-hidden="true" />
             <div className="text-sm font-semibold text-white font-mono">Synthesizing Incident Dossier...</div>
             <p className="text-xs text-slate-400 font-sans">
               Correlating OSM infrastructure, Open-Meteo weather telemetry, and AI explainable factors.
@@ -234,10 +234,10 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
         {!loading && error && (
           <div
             id="unknown-incident-state"
-            className="p-6 rounded bg-rose-950/40 border border-rose-800/80 text-center space-y-4 shadow-xl cyber-chamfer-sm"
+            className="p-6 rounded bg-rose-950/40 border border-rose-800/80 text-center space-y-4 shadow-xl"
             role="alert"
           >
-            <div className="w-12 h-12 rounded bg-rose-900/60 border border-rose-700 mx-auto flex items-center justify-center text-rose-300 cyber-chamfer-xs">
+            <div className="w-12 h-12 rounded bg-rose-900/60 border border-rose-700 mx-auto flex items-center justify-center text-rose-300">
               <FileQuestion className="w-7 h-7 text-rose-400" aria-hidden="true" />
             </div>
             <div className="space-y-1">
@@ -248,7 +248,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                 The requested incident identifier does not exist in the active telemetry registry or archived orbital passes.
               </p>
             </div>
-            <div className="p-3 rounded bg-void border border-border-color font-mono text-[11px] text-slate-400 max-w-sm mx-auto text-left space-y-1 cyber-chamfer-xs">
+            <div className="p-3 rounded bg-surface font-mono text-[11px] text-slate-400 max-w-sm mx-auto text-left space-y-1">
               <div>Query ID: <strong className="text-slate-200">{error.id}</strong></div>
               <div>Status: <span className="text-rose-400 font-bold">Unrecognized Record (404)</span></div>
               <div>Fallback Action: <span className="text-slate-300">No substitution performed</span></div>
@@ -257,7 +257,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
               type="button"
               id="btn-return-queue"
               onClick={onClose}
-              className="px-4 py-2 rounded bg-elevated hover:bg-surface text-white font-semibold text-xs font-mono uppercase tracking-wider transition-all border border-border-color cursor-pointer cyber-chamfer-xs"
+              className="px-4 py-2 rounded bg-elevated hover:bg-surface text-white font-semibold text-xs font-mono uppercase tracking-wider transition-all cursor-pointer"
             >
               Return to Incident Queue
             </button>
@@ -286,13 +286,13 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                   FRP: {hotspot.frp.toFixed(1)} MW
                 </span>
               </div>
-              <div className="p-3.5 sm:p-4 rounded bg-surface border border-border-color shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 cyber-chamfer-xs">
+              <div className="p-3.5 sm:p-4 rounded bg-surface shadow-subtle flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center space-x-4">
                 <RiskGauge score={hotspot.risk_score} level={hotspot.risk_level} size={84} />
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
                     <span
-                      className={`text-xs font-mono font-extrabold uppercase px-2 py-0.5 rounded cyber-chamfer-xs ${meta.badgeBg}`}
+                      className={`text-xs font-mono font-extrabold uppercase px-2 py-0.5 rounded ${meta.badgeBg}`}
                     >
                       {meta.label} SEVERITY
                     </span>
@@ -314,7 +314,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                 <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
                   OPERATIONAL STATUS
                 </span>
-                <span className={`text-xs font-bold mt-1 ${statusMeta.badgeBg} px-2 py-0.5 rounded cyber-chamfer-xs`}>
+                <span className={`text-xs font-bold mt-1 ${statusMeta.badgeBg} px-2 py-0.5 rounded`}>
                   {statusMeta.label}
                 </span>
                 <span className="text-[10px] text-slate-500 mt-1.5">
@@ -325,25 +325,25 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
             </div>
 
             {/* 2. WHY THIS WAS FLAGGED (EXPLAINABLE AI) */}
-            <div className="space-y-2.5 p-3.5 rounded bg-surface/90 border border-border-color cyber-chamfer-xs">
-              <div className="flex items-center justify-between border-b border-border-color pb-1.5">
+            <div className="space-y-2.5 p-3.5 rounded bg-surface/90">
+              <div className="flex items-center justify-between border-b border-subtle pb-1.5">
                 <div className="flex items-center space-x-2">
                   <BrainCircuit className="w-4 h-4 text-thermal-orange" aria-hidden="true" />
                   <h3 className="text-xs font-bold uppercase tracking-wider text-white font-mono">
                     2. WHY THE SYSTEM THINKS IT HAPPENED (WHY THIS WAS FLAGGED)
                   </h3>
                 </div>
-                <span className="text-[10px] font-mono text-cyber-cyan">
+                <span className="text-[10px] font-mono text-blue-400">
                   Model: {intel?.model_version || 'v1.0-rf-heuristic'}
                 </span>
               </div>
 
               {/* Anomaly Rationale */}
               {intel?.anomaly && (
-                <div className="p-2.5 rounded bg-void border border-border-color text-xs space-y-1 cyber-chamfer-xs">
+                <div className="p-2.5 rounded bg-surface text-xs space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-slate-200 font-mono text-[11px]">Statistical Anomaly Engine</span>
-                    <span className="font-mono text-cyber-cyan text-xs font-bold">
+                    <span className="font-mono text-blue-400 text-xs font-bold">
                       Deviation: {intel.anomaly.baseline_deviation ?? (intel.anomaly as Record<string, any>).deviation_sigma}σ Outlier
                     </span>
                   </div>
@@ -354,7 +354,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
               )}
 
               {/* Feature Importance (Cleanly handles present, null, or undefined) */}
-              <div className="p-2.5 rounded bg-void border border-border-color space-y-2 cyber-chamfer-xs">
+              <div className="p-2.5 rounded bg-surface space-y-2">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-semibold text-slate-300 font-mono text-[11px]">Global Feature Importance Weights</span>
                   <span className="text-[10px] text-slate-500 font-mono">
@@ -368,11 +368,11 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                       <div key={feature} className="space-y-0.5">
                         <div className="flex items-center justify-between text-[10px] font-mono">
                           <span className="capitalize text-slate-300">{feature.replace(/_/g, ' ')}</span>
-                          <span className="text-cyber-cyan font-bold">{Math.round(weight * 100)}%</span>
+                          <span className="text-blue-400 font-bold">{Math.round(weight * 100)}%</span>
                         </div>
                         <div className="w-full bg-slate-900 rounded-full h-1 overflow-hidden">
                           <div
-                            className="bg-cyber-cyan h-full rounded-full"
+                            className="bg-blue-400 h-full rounded-full"
                             style={{ width: `${Math.round(weight * 100)}%` }}
                           />
                         </div>
@@ -395,13 +395,13 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                   return (
                     <div
                       key={idx}
-                      className="p-2.5 rounded bg-void border border-border-color space-y-1.5 cyber-chamfer-xs"
+                      className="p-2.5 rounded bg-surface space-y-1.5"
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-white font-sans">{factor.factor}</span>
                         <div className="flex items-center space-x-2">
                           <span
-                            className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.2 rounded cyber-chamfer-xs ${factorMeta.badgeBg}`}
+                            className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.2 rounded ${factorMeta.badgeBg}`}
                           >
                             {factor.impact}
                           </span>
@@ -431,8 +431,8 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
             </div>
 
             {/* 3. HOW CERTAIN (DATA & MODEL CERTAINTY) - SECTION 6 COMPLIANT 5-PILLAR SEPARATION */}
-            <div className="space-y-2.5 p-3.5 rounded bg-surface/90 border border-border-color cyber-chamfer-xs">
-              <div className="flex items-center justify-between border-b border-border-color pb-1.5">
+            <div className="space-y-2.5 p-3.5 rounded bg-surface/90">
+              <div className="flex items-center justify-between border-b border-subtle pb-1.5">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 font-mono">
                   3. HOW CONFIDENT THE SYSTEM IS (HOW CERTAIN)
                 </h3>
@@ -444,9 +444,9 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
               {/* Explicit 5-way Architecture Separation */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-mono">
                 {/* 1. Satellite Native Detection Confidence */}
-                <div className="p-2.5 rounded bg-void border border-border-color space-y-1 cyber-chamfer-xs">
+                <div className="p-2.5 rounded bg-surface space-y-1">
                   <div className="text-[10px] text-slate-400 uppercase font-bold">Satellite Detection Confidence</div>
-                  <div className="text-sm font-bold text-cyber-green capitalize">
+                  <div className="text-sm font-bold text-emerald-400 capitalize">
                     {hotspot.confidence}
                   </div>
                   <div className="text-[9px] text-slate-500 font-sans leading-tight">
@@ -455,9 +455,9 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                 </div>
 
                 {/* 2. AI Classification Confidence */}
-                <div className="p-2.5 rounded bg-void border border-border-color space-y-1 cyber-chamfer-xs">
+                <div className="p-2.5 rounded bg-surface space-y-1">
                   <div className="text-[10px] text-slate-400 uppercase font-bold">AI Classification Confidence</div>
-                  <div className="text-sm font-bold text-cyber-cyan">
+                  <div className="text-sm font-bold text-blue-400">
                     {Math.round((intel?.classification?.confidence || 0.92) * 100)}%
                   </div>
                   <div className="text-[9px] text-slate-500 font-sans leading-tight">
@@ -466,7 +466,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                 </div>
 
                 {/* 3. Context Quality / Completeness */}
-                <div className="p-2.5 rounded bg-void border border-border-color space-y-1 cyber-chamfer-xs">
+                <div className="p-2.5 rounded bg-surface space-y-1">
                   <div className="text-[10px] text-slate-400 uppercase">Context Completeness</div>
                   <div className="text-sm font-bold text-purple-400">
                     95%
@@ -477,7 +477,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                 </div>
 
                 {/* 4. Anomaly Score */}
-                <div className="p-2.5 rounded bg-void border border-border-color space-y-1 cyber-chamfer-xs">
+                <div className="p-2.5 rounded bg-surface space-y-1">
                   <div className="text-[10px] text-slate-400 uppercase font-bold">Statistical Anomaly Score</div>
                   <div className="text-sm font-bold text-amber-400">
                     {intel?.anomaly?.anomaly_score ? intel.anomaly.anomaly_score.toFixed(2) : (hotspot.is_anomaly ? '0.88' : '0.12')}
@@ -488,7 +488,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                 </div>
 
                 {/* 5. Composite Risk Score */}
-                <div className="p-2.5 rounded bg-void border border-border-color space-y-1 col-span-2 sm:col-span-2 cyber-chamfer-xs">
+                <div className="p-2.5 rounded bg-surface space-y-1 col-span-2 sm:col-span-2">
                   <div className="text-[10px] text-slate-400 uppercase font-bold">Composite Risk Score</div>
                   <div className="flex items-center space-x-2">
                     <span className="text-sm font-bold text-thermal-flame">
@@ -504,14 +504,14 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                 </div>
               </div>
 
-              <div className="p-2 rounded bg-void/80 border border-border-color/60 text-[10px] text-slate-400 font-mono">
-                <span className="text-cyber-cyan font-bold">V2 CONTRACT:</span> Detection confidence assesses raw orbital signal SNR; classification confidence evaluates ML category probability; risk score models operational hazard.
+              <div className="p-2 rounded bg-void/80 /60 text-[10px] text-slate-400 font-mono">
+                <span className="text-blue-400 font-bold">V2 CONTRACT:</span> Detection confidence assesses raw orbital signal SNR; classification confidence evaluates ML category probability; risk score models operational hazard.
               </div>
             </div>
 
             {/* 4. WHAT CHANGED (STATE DELTA) */}
-            <div className="p-3 rounded bg-surface/90 border border-border-color shadow-sm flex items-start space-x-3 cyber-chamfer-xs">
-              <div className="p-2 rounded bg-void border border-border-color text-cyber-cyan shrink-0 cyber-chamfer-xs">
+            <div className="p-3 rounded bg-surface/90 flex items-start space-x-3">
+              <div className="p-2 rounded bg-surface text-blue-400 shrink-0">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div className="space-y-0.5">
@@ -531,7 +531,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
 
             {/* 5. WHAT THE SYSTEM DID / RECOMMENDED ACTION */}
             {(Boolean(intel?.risk?.recommended_action) || Boolean((intel?.risk as Record<string, any>)?.recommendations?.length)) && (
-              <div className="p-3.5 rounded bg-gradient-to-r from-red-950/50 via-surface to-surface border border-red-500/40 shadow-xl cyber-chamfer-xs">
+              <div className="p-3.5 rounded bg-gradient-to-r from-red-950/50 via-surface to-surface border border-red-500/40 shadow-xl">
                 <div className="flex items-start space-x-2.5">
                   <ShieldAlert className="w-5 h-5 text-red-400 mt-0.5 shrink-0" aria-hidden="true" />
                   <div className="space-y-1">
@@ -545,7 +545,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                     )}
                     {(intel?.risk as Record<string, any>)?.recommendations?.map((rec: string, i: number) => (
                       <div key={i} className="flex items-center space-x-2 text-xs text-slate-200 font-sans">
-                        <span className="text-cyber-green font-bold">•</span>
+                        <span className="text-emerald-400 font-bold">•</span>
                         <span>{rec}</span>
                       </div>
                     ))}
@@ -557,9 +557,9 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
             {/* ========================================================
                 DEEPER DATA INSPECTION TABS (THERMAL, GEO, WEATHER, HISTORY, PROVENANCE, TIMELINE)
                ======================================================== */}
-            <div className="border-t border-border-color pt-3 space-y-3 font-mono">
+            <div className="border-t border-subtle pt-3 space-y-3 font-mono">
               {/* Tab Navigation */}
-              <div className="flex items-center space-x-1 overflow-x-auto pb-1 border-b border-border-color text-xs">
+              <div className="flex items-center space-x-1 overflow-x-auto pb-1 border-b border-subtle text-xs">
                 {(
                   [
                     { id: 'thermal', label: 'Thermal' },
@@ -574,11 +574,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`px-3 py-1.5 rounded-t transition-all font-bold whitespace-nowrap cyber-chamfer-xs cursor-pointer ${
-                      activeTab === tab.id
-                        ? 'bg-elevated text-white border-b-2 border-cyber-cyan text-cyber-cyan'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-surface'
-                    }`}
+                    className={`px-3 py-1.5 rounded-t transition-all font-bold whitespace-nowrap cursor-pointer ${ activeTab === tab.id ? 'bg-elevated text-white border-b-2 border-blue-400 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-surface' }`}
                   >
                     {tab.label}
                   </button>
@@ -596,15 +592,15 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-[10px] text-slate-500 uppercase">Radiative Power</div>
-                      <div className="text-sm font-bold text-cyber-cyan mt-0.5">{formatFrp(hotspot.frp)}</div>
+                      <div className="text-sm font-bold text-blue-400 mt-0.5">{formatFrp(hotspot.frp)}</div>
                     </div>
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-[10px] text-slate-500 uppercase">Brightness (I-4)</div>
                       <div className="text-sm font-bold text-slate-200 mt-0.5">{hotspot.brightness} K</div>
                     </div>
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-[10px] text-slate-500 uppercase">Bright T31 Band</div>
                       <div className="text-xs font-bold text-slate-200 mt-0.5">
                         {hotspot.bright_t31 ? `${hotspot.bright_t31} K` : (
@@ -612,7 +608,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                         )}
                       </div>
                     </div>
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-[10px] text-slate-500 uppercase">Resolution / Pass</div>
                       <div className="text-xs font-bold text-slate-200 mt-0.5">
                         {hotspot.satellite} ({hotspot.daynight === 'D' ? 'Day' : 'Night'})
@@ -633,17 +629,17 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-[11px] text-slate-400 font-medium font-sans">Nearest Human Settlement</div>
                       <div className="text-slate-200 font-semibold mt-1 font-sans">
                         {geo?.nearest_settlement || 'No major settlement within 5km'}
                       </div>
-                      <div className="text-[11px] text-cyber-cyan font-mono mt-0.5">
+                      <div className="text-[11px] text-blue-400 font-mono mt-0.5">
                         Distance: <strong>{formatDistance(geo?.distance_to_settlement_meters)}</strong>
                       </div>
                     </div>
 
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-[11px] text-slate-400 font-medium font-sans">Critical Infrastructure Corridor</div>
                       <div className="text-slate-200 font-semibold mt-1 font-sans">
                         {geo?.nearest_infrastructure || 'No critical utility identified'}
@@ -653,18 +649,18 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                       </div>
                     </div>
 
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-[11px] text-slate-400 font-medium font-sans">Land Cover & Fuel Estimate</div>
                       <div className="text-slate-200 font-semibold mt-1 font-sans">{geo?.land_cover || 'Vegetation'}</div>
                       <div className="text-[11px] text-slate-400 mt-0.5 font-mono">Fuel: {geo?.fuel_load_estimate || 'Standard'}</div>
                     </div>
 
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-[11px] text-slate-400 font-medium font-sans">Terrain Topography</div>
                       <div className="text-slate-200 font-semibold mt-1 font-mono">
                         Elevation: {geo?.elevation_meters ?? 'Unavailable'}m • Slope: {geo?.slope_degrees ?? 'Unavailable'}°
                       </div>
-                      <div className="text-[11px] text-cyber-green mt-0.5 font-sans">
+                      <div className="text-[11px] text-emerald-400 mt-0.5 font-sans">
                         {geo?.is_protected_area
                           ? `Protected: ${geo.protected_area_name || 'Conservation Zone'}`
                           : 'Unprotected Parcel'}
@@ -685,7 +681,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="p-2.5 rounded bg-surface border border-border-color text-center cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel text-center">
                       <Thermometer className="w-4 h-4 text-thermal-orange mx-auto mb-1" />
                       <div className="text-sm sm:text-base font-bold font-mono text-white">
                         {formatTemp(weather?.temperature_celsius)}
@@ -693,15 +689,15 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                       <div className="text-[10px] text-slate-400 uppercase font-mono">Temperature</div>
                     </div>
 
-                    <div className="p-2.5 rounded bg-surface border border-border-color text-center cyber-chamfer-xs">
-                      <Droplets className="w-4 h-4 text-cyber-cyan mx-auto mb-1" />
+                    <div className="p-2.5 rounded bg-panel text-center">
+                      <Droplets className="w-4 h-4 text-blue-400 mx-auto mb-1" />
                       <div className="text-sm sm:text-base font-bold font-mono text-white">
                         {weather?.relative_humidity_percent != null ? `${weather.relative_humidity_percent}%` : '—'}
                       </div>
                       <div className="text-[10px] text-slate-400 uppercase font-mono">Rel. Humidity</div>
                     </div>
 
-                    <div className="p-2.5 rounded bg-surface border border-border-color text-center relative overflow-hidden cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel text-center relative overflow-hidden">
                       <div className="flex items-center justify-center space-x-1 text-teal-400 mb-1">
                         <Compass
                           className="w-4 h-4 transition-transform duration-500"
@@ -719,7 +715,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                       </div>
                     </div>
 
-                    <div className="p-2.5 rounded bg-surface border border-border-color text-center cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel text-center">
                       <Droplets className="w-4 h-4 text-blue-400 mx-auto mb-1" />
                       <div className="text-sm sm:text-base font-bold font-mono text-white">
                         {weather?.precipitation_mm ?? 0} <span className="text-xs font-normal">mm</span>
@@ -729,7 +725,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                   </div>
 
                   {weather?.forecast_summary && (
-                    <div className="p-2.5 rounded bg-void border border-border-color text-[11px] text-slate-300 italic flex items-center space-x-2 font-sans cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-surface text-[11px] text-slate-300 italic flex items-center space-x-2 font-sans">
                       <span className="text-amber-400 font-bold not-italic font-mono">Forecast:</span>
                       <span>{weather.forecast_summary}</span>
                     </div>
@@ -748,24 +744,22 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-slate-400 text-[10px] uppercase font-mono">30-Day Passes</div>
                       <div className="text-base font-bold font-mono text-white mt-0.5">
                         {history?.prior_detections_30d ?? 0}
                       </div>
                     </div>
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-slate-400 text-[10px] uppercase font-mono">90-Day Persistence</div>
                       <div className="text-base font-bold font-mono text-white mt-0.5">
                         {history?.prior_detections_90d ?? 0}
                       </div>
                     </div>
-                    <div className="p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs">
+                    <div className="p-2.5 rounded bg-panel">
                       <div className="text-slate-400 text-[10px] uppercase font-mono">Recurrent Site</div>
                       <div
-                        className={`text-base font-bold font-mono mt-0.5 ${
-                          history?.is_recurrent_site ? 'text-amber-400' : 'text-slate-300'
-                        }`}
+                        className={`text-base font-bold font-mono mt-0.5 ${ history?.is_recurrent_site ? 'text-amber-400' : 'text-slate-300' }`}
                       >
                         {history?.is_recurrent_site ? 'YES' : 'NO'}
                       </div>
@@ -781,7 +775,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                     <span className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
                       Chronological Events & Audit Trail
                     </span>
-                    <span className="text-[10px] font-mono text-cyber-cyan">
+                    <span className="text-[10px] font-mono text-blue-400">
                       {(incident.timeline || []).length} Logged Transitions
                     </span>
                   </div>
@@ -795,9 +789,9 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                       incident.timeline.map((t, idx) => (
                         <div
                           key={idx}
-                          className="flex items-start space-x-3 text-xs p-2.5 rounded bg-surface border border-border-color cyber-chamfer-xs"
+                          className="flex items-start space-x-3 text-xs p-2.5 rounded bg-panel"
                         >
-                          <div className="w-2 h-2 rounded-full bg-cyber-cyan mt-1.5 shrink-0 shadow-[0_0_6px_#00d4ff]" />
+                          <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 shrink-0 shadow-[0_0_6px_#00d4ff]" />
                           <div className="flex-1 space-y-0.5">
                             <div className="flex items-center justify-between">
                               <span className="font-semibold text-slate-200 font-sans">{t.summary}</span>
@@ -806,7 +800,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                               </span>
                             </div>
                             {t.event_type && (
-                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-void text-cyber-cyan border border-border-color">
+                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-void text-blue-400">
                                 {t.event_type}
                               </span>
                             )}
@@ -825,7 +819,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
                     <span className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
                       Complete Data Provenance & Ingestion Audit
                     </span>
-                    <span className="text-[10px] font-mono text-cyber-cyan">Section 5 Aligned</span>
+                    <span className="text-[10px] font-mono text-blue-400">Section 5 Aligned</span>
                   </div>
 
                   <div className="space-y-2">

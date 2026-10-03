@@ -22,9 +22,7 @@ export const ProvenanceBadge: React.FC<ProvenanceBadgeProps> = ({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono border transition-all ${
-        onClick ? 'hover:bg-slate-800 cursor-pointer' : 'cursor-default'
-      } ${meta.badgeBg} ${className}`}
+      className={`inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono border transition-all ${ onClick ? 'hover:bg-slate-800 cursor-pointer' : 'cursor-default' } ${meta.badgeBg} ${className}`}
       title={`Source: ${provenance.provider} (${provenance.product}) • Observed: ${
         provenance.observed_at_utc ? formatTimestamp(provenance.observed_at_utc) : 'N/A'
       }`}

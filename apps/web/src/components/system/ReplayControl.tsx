@@ -65,22 +65,14 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
   return (
     <div
       id="replay-control-bar"
-      className={`cyber-chamfer-xs border transition-all duration-300 font-mono text-xs select-none backdrop-blur-md ${
-        isActive
-          ? 'bg-void/95 border-cyber-accent/60 shadow-[0_0_20px_rgba(0,255,136,0.15)] ring-1 ring-cyber-accent/30'
-          : 'bg-surface/90 border-cyber-border hover:border-cyber-border/80'
-      } ${className}`}
+      className={`border transition-all duration-300 font-mono text-xs select-none backdrop-blur-md ${ isActive ? 'bg-void/95 border-cyber-accent/60 shadow-[0_0_20px_rgba(0,255,136,0.15)] ring-1 ring-cyber-accent/30' : 'bg-surface/90 border-cyber-border hover:border-cyber-border/80' } ${className}`}
     >
       {/* Top Telemetry & Control Bar */}
       <div className="p-3 sm:px-4 flex flex-wrap items-center justify-between gap-3 border-b border-cyber-border/50">
         {/* Left: Mode Badge & Operational Lifecycle Indicator */}
         <div className="flex items-center space-x-3">
           <div
-            className={`flex items-center justify-center w-8 h-8 rounded border transition-colors ${
-              isActive
-                ? 'bg-cyber-accent/10 border-cyber-accent/50 text-cyber-accent animate-pulse shadow-[0_0_8px_rgba(0,255,136,0.3)]'
-                : 'bg-elevated border-cyber-border text-subtle'
-            }`}
+            className={`flex items-center justify-center w-8 h-8 rounded border transition-colors ${ isActive ? 'bg-cyber-accent/10 border-cyber-accent/50 text-cyber-accent animate-pulse shadow-[0_0_8px_rgba(0,255,136,0.3)]' : 'bg-elevated border-cyber-border text-subtle' }`}
           >
             {isActive ? <Clock className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
           </div>
@@ -91,11 +83,7 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
                 {isActive ? 'TEMPORAL REPLAY SUITE' : 'OPERATIONAL TEMPORAL ENGINE'}
               </span>
               <span
-                className={`px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider ${
-                  isActive
-                    ? 'bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/40 shadow-[0_0_6px_rgba(0,255,136,0.2)]'
-                    : 'bg-thermal-DEFAULT/20 text-thermal-bright border border-thermal-DEFAULT/40'
-                }`}
+                className={`px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider ${ isActive ? 'bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/40 shadow-[0_0_6px_rgba(0,255,136,0.2)]' : 'bg-thermal-DEFAULT/20 text-thermal-bright border border-thermal-DEFAULT/40' }`}
               >
                 {isActive ? 'REPLAY ACTIVE' : 'LIVE TELEMETRY'}
               </span>
@@ -123,11 +111,7 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsPlaying(!isPlaying)}
-                  className={`p-1 rounded transition-colors ${
-                    isPlaying
-                      ? 'bg-cyber-accent text-void font-bold shadow-[0_0_8px_rgba(0,255,136,0.4)]'
-                      : 'text-cyber-accent hover:bg-surface'
-                  }`}
+                  className={`p-1 rounded transition-colors ${ isPlaying ? 'bg-cyber-accent text-void font-bold shadow-[0_0_8px_rgba(0,255,136,0.4)]' : 'text-cyber-accent hover:bg-surface' }`}
                   title={isPlaying ? 'Pause Playback' : 'Play Timeline'}
                 >
                   {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -149,11 +133,7 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
                     key={spd}
                     type="button"
                     onClick={() => setPlaybackSpeed(spd)}
-                    className={`px-1.5 py-0.5 rounded transition-all ${
-                      playbackSpeed === spd
-                        ? 'bg-cyber-accent/20 text-cyber-accent font-bold border border-cyber-accent/40'
-                        : 'text-subtle hover:text-foreground'
-                    }`}
+                    className={`px-1.5 py-0.5 rounded transition-all ${ playbackSpeed === spd ? 'bg-cyber-accent/20 text-cyber-accent font-bold border border-cyber-accent/40' : 'text-subtle hover:text-foreground' }`}
                   >
                     {spd}
                   </button>
@@ -163,7 +143,7 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
               {/* Virtual Timestamp */}
               <div className="px-2.5 py-1 rounded bg-elevated/90 border border-cyber-border text-right min-w-[130px]">
                 <div className="text-[9px] text-subtle uppercase tracking-wider">Virtual Pass Time</div>
-                <div className="text-xs font-bold text-cyber-cyan">{virtualTime}</div>
+                <div className="text-xs font-bold text-blue-400">{virtualTime}</div>
               </div>
             </>
           )}
@@ -173,11 +153,7 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
             type="button"
             id="btn-toggle-replay-mode"
             onClick={() => onToggleReplay(!isActive)}
-            className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
-              isActive
-                ? 'bg-destructive/20 text-destructive border border-destructive/50 hover:bg-destructive/30 shadow-[0_0_8px_rgba(255,51,102,0.2)]'
-                : 'bg-elevated hover:bg-surface text-foreground border border-cyber-border hover:border-cyber-accent/50 hover:text-cyber-accent shadow-sm'
-            }`}
+            className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${ isActive ? 'bg-destructive/20 text-destructive border border-destructive/50 hover:bg-destructive/30 shadow-[0_0_8px_rgba(255,51,102,0.2)]' : 'bg-elevated hover:bg-surface text-foreground border border-cyber-border hover:border-cyber-accent/50 hover:text-cyber-accent shadow-sm' }`}
           >
             {isActive ? (
               <>
@@ -203,7 +179,7 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
             <div className="relative w-full h-2 bg-elevated rounded overflow-hidden border border-cyber-border">
               {/* Progress Highlight */}
               <div
-                className="h-full bg-gradient-to-r from-thermal-DEFAULT via-cyber-cyan to-cyber-accent transition-all duration-150"
+                className="h-full bg-gradient-to-r from-thermal-DEFAULT via-blue-400 to-cyber-accent transition-all duration-150"
                 style={{ width: `${sliderVal}%` }}
               />
             </div>
@@ -237,16 +213,10 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
                     }}
                   >
                     <div
-                      className={`w-2 h-2 rounded-full border transition-all ${
-                        isPassed
-                          ? 'bg-cyber-accent border-cyber-accent shadow-[0_0_6px_rgba(0,255,136,0.6)] scale-110'
-                          : 'bg-elevated border-subtle group-hover:border-foreground'
-                      }`}
+                      className={`w-2 h-2 rounded-full border transition-all ${ isPassed ? 'bg-cyber-accent border-cyber-accent shadow-[0_0_6px_rgba(0,255,136,0.6)] scale-110' : 'bg-elevated border-subtle group-hover:border-foreground' }`}
                     />
                     <span
-                      className={`text-[9px] mt-1 whitespace-nowrap transition-colors ${
-                        isPassed ? 'text-cyber-accent font-bold' : 'text-subtle group-hover:text-foreground'
-                      }`}
+                      className={`text-[9px] mt-1 whitespace-nowrap transition-colors ${ isPassed ? 'text-cyber-accent font-bold' : 'text-subtle group-hover:text-foreground' }`}
                     >
                       {m.source} ({m.time.split(' ')[0]})
                     </span>
@@ -268,13 +238,7 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
                   return (
                     <React.Fragment key={stg}>
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold transition-colors ${
-                          isCurrent
-                            ? 'bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/60 shadow-[0_0_6px_rgba(0,255,136,0.3)]'
-                            : isDone
-                            ? 'bg-elevated text-foreground border border-cyber-border'
-                            : 'text-subtle/60'
-                        }`}
+                        className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold transition-colors ${ isCurrent ? 'bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/60 shadow-[0_0_6px_rgba(0,255,136,0.3)]' : isDone ? 'bg-elevated text-foreground border border-cyber-border' : 'text-subtle/60' }`}
                       >
                         {stg}
                       </span>
@@ -285,8 +249,8 @@ export const ReplayControl: React.FC<ReplayControlProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center space-x-1.5 text-cyber-cyan text-[10px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyber-cyan animate-pulse" />
+            <div className="flex items-center space-x-1.5 text-blue-400 text-[10px]">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
               <span>DETERMINISTIC SIMULATION SYNCED</span>
             </div>
           </div>

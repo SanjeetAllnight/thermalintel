@@ -157,7 +157,7 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
       const pulseHtml =
         h.risk_level === 'critical' || isSelected
           ? `<span class="absolute -inset-2 rounded-full ${
-              isSelected ? 'bg-cyber-cyan/50 motion-safe:animate-ping' : 'bg-red-500/40 motion-safe:animate-ping'
+              isSelected ? 'bg-blue-400/50 motion-safe:animate-ping' : 'bg-red-500/40 motion-safe:animate-ping'
             }"></span>`
           : '';
 
@@ -180,7 +180,7 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
 
       if (isSelected) {
         symbol = '✛';
-        shapeClass = 'rounded-full border-2 border-cyber-cyan ring-4 ring-cyber-cyan/60 shadow-[0_0_16px_rgba(0,212,255,0.9)]';
+        shapeClass = 'rounded-full border-2 border-blue-400 ring-4 ring-blue-400/60 shadow-[0_0_16px_rgba(0,212,255,0.9)]';
       }
 
       const icon = L.divIcon({
@@ -206,7 +206,7 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
       popupContent.className = 'p-3 bg-void text-foreground rounded border border-cyber-border font-mono min-w-[220px] shadow-2xl';
       popupContent.innerHTML = `
         <div class="flex items-center justify-between gap-2 border-b border-cyber-border pb-1.5 mb-2">
-          <span class="text-xs font-bold text-cyber-cyan">${h.id}</span>
+          <span class="text-xs font-bold text-blue-400">${h.id}</span>
           <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded tracking-wider" style="background-color: ${meta.fillHex}33; color: ${meta.fillHex}; border: 1px solid ${meta.fillHex}66;">
             ${h.risk_level} (${Math.round(h.risk_score)})
           </span>
@@ -296,37 +296,25 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
       {/* Floating Tactical Controls Toolbar (Top Left) */}
       <div className="absolute top-4 left-4 z-[400] flex flex-wrap items-center gap-2">
         {/* Basemap Switcher */}
-        <div className="flex items-center cyber-chamfer-xs bg-void/90 backdrop-blur-md border border-cyber-border p-1 shadow-2xl text-xs font-mono">
+        <div className="flex items-center bg-void/90 backdrop-blur-md border border-cyber-border p-1 shadow-2xl text-xs font-mono">
           <button
             type="button"
             onClick={() => setBasemap('dark')}
-            className={`px-2.5 py-1 rounded transition-all uppercase tracking-wider ${
-              basemap === 'dark'
-                ? 'bg-elevated text-cyber-cyan font-bold border border-cyber-cyan/40 shadow-[0_0_8px_rgba(0,212,255,0.2)]'
-                : 'text-subtle hover:text-foreground'
-            }`}
+            className={`px-2.5 py-1 rounded transition-all uppercase tracking-wider ${ basemap === 'dark' ? 'bg-elevated text-blue-400 font-bold border border-blue-400/40 shadow-[0_0_8px_rgba(0,212,255,0.2)]' : 'text-subtle hover:text-foreground' }`}
           >
             Dark Vector
           </button>
           <button
             type="button"
             onClick={() => setBasemap('satellite')}
-            className={`px-2.5 py-1 rounded transition-all uppercase tracking-wider ${
-              basemap === 'satellite'
-                ? 'bg-elevated text-cyber-cyan font-bold border border-cyber-cyan/40 shadow-[0_0_8px_rgba(0,212,255,0.2)]'
-                : 'text-subtle hover:text-foreground'
-            }`}
+            className={`px-2.5 py-1 rounded transition-all uppercase tracking-wider ${ basemap === 'satellite' ? 'bg-elevated text-blue-400 font-bold border border-blue-400/40 shadow-[0_0_8px_rgba(0,212,255,0.2)]' : 'text-subtle hover:text-foreground' }`}
           >
             Satellite
           </button>
           <button
             type="button"
             onClick={() => setBasemap('topo')}
-            className={`px-2.5 py-1 rounded transition-all uppercase tracking-wider ${
-              basemap === 'topo'
-                ? 'bg-elevated text-cyber-cyan font-bold border border-cyber-cyan/40 shadow-[0_0_8px_rgba(0,212,255,0.2)]'
-                : 'text-subtle hover:text-foreground'
-            }`}
+            className={`px-2.5 py-1 rounded transition-all uppercase tracking-wider ${ basemap === 'topo' ? 'bg-elevated text-blue-400 font-bold border border-blue-400/40 shadow-[0_0_8px_rgba(0,212,255,0.2)]' : 'text-subtle hover:text-foreground' }`}
           >
             Topo
           </button>
@@ -336,11 +324,7 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
         <button
           type="button"
           onClick={() => setShowHalos(!showHalos)}
-          className={`flex items-center space-x-1.5 px-2.5 py-1.5 cyber-chamfer-xs bg-void/90 backdrop-blur-md border text-xs shadow-xl transition-all font-mono uppercase tracking-wider ${
-            showHalos
-              ? 'border-thermal-DEFAULT/60 text-thermal-bright shadow-[0_0_8px_rgba(255,107,0,0.2)]'
-              : 'border-cyber-border text-subtle hover:text-foreground'
-          }`}
+          className={`flex items-center space-x-1.5 px-2.5 py-1.5 bg-void/90 backdrop-blur-md border text-xs shadow-xl transition-all font-mono uppercase tracking-wider ${ showHalos ? 'border-thermal-DEFAULT/60 text-thermal-bright shadow-[0_0_8px_rgba(255,107,0,0.2)]' : 'border-cyber-border text-subtle hover:text-foreground' }`}
           title="Toggle Thermal FRP Radiance Halos"
         >
           {showHalos ? <Eye className="w-3.5 h-3.5 text-thermal-DEFAULT" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -352,10 +336,10 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
           id="btn-map-fit-all"
           type="button"
           onClick={handleFitAll}
-          className="flex items-center space-x-1 px-2.5 py-1.5 cyber-chamfer-xs bg-void/90 backdrop-blur-md border border-cyber-border hover:border-cyber-cyan/50 text-subtle hover:text-foreground text-xs font-mono uppercase tracking-wider shadow-xl transition-all"
+          className="flex items-center space-x-1 px-2.5 py-1.5 bg-void/90 backdrop-blur-md border border-cyber-border hover:border-blue-400/50 text-subtle hover:text-foreground text-xs font-mono uppercase tracking-wider shadow-xl transition-all"
           title="Fit view to all active anomalies"
         >
-          <Maximize2 className="w-3.5 h-3.5 text-cyber-cyan" />
+          <Maximize2 className="w-3.5 h-3.5 text-blue-400" />
           <span className="hidden sm:inline">Fit All</span>
         </button>
 
@@ -365,7 +349,7 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
             id="btn-map-focus-target"
             type="button"
             onClick={handleFocusSelected}
-            className="flex items-center space-x-1.5 px-2.5 py-1.5 cyber-chamfer-xs bg-destructive/20 backdrop-blur-md border border-destructive/60 text-destructive hover:text-white text-xs font-mono uppercase tracking-wider shadow-[0_0_10px_rgba(255,51,102,0.4)] transition-all animate-pulse"
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-destructive/20 backdrop-blur-md border border-destructive/60 text-destructive hover:text-white text-xs font-mono uppercase tracking-wider shadow-[0_0_10px_rgba(255,51,102,0.4)] transition-all animate-pulse"
             title="Focus Selected Hotspot"
           >
             <Crosshair className="w-3.5 h-3.5 text-destructive" />
@@ -380,7 +364,7 @@ export const ThermalMap: React.FC<ThermalMapProps> = ({
       {/* Coordinates / Telemetry HUD Overlay (Bottom Right) */}
       <div className="absolute bottom-3 right-3 z-[400] pointer-events-none hidden sm:flex items-center space-x-3 text-[10px] font-mono text-subtle bg-void/90 backdrop-blur-md px-3 py-1.5 rounded border border-cyber-border/80 shadow-2xl">
         <div className="flex items-center space-x-1.5">
-          <Navigation className="w-3 h-3 text-cyber-cyan" />
+          <Navigation className="w-3 h-3 text-blue-400" />
           <span>
             {cursorCoords
               ? `LAT: ${cursorCoords.lat.toFixed(4)}° | LON: ${cursorCoords.lng.toFixed(4)}°`

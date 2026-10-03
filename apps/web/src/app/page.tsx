@@ -115,7 +115,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-void text-foreground font-sans selection:bg-thermal-DEFAULT selection:text-void scanlines-overlay">
+    <div className="min-h-screen flex bg-void text-foreground font-sans selection:bg-thermal-DEFAULT selection:text-void">
       {/* 1. COMPACT NAVIGATION RAIL (Left Anchor) */}
       <NavRail
         activeView={activeNav}
@@ -151,7 +151,7 @@ export default function DashboardPage() {
           {/* Global Connection / Telemetry Alert Notice */}
           {error && (
             <div
-              className="p-3.5 rounded cyber-chamfer-xs bg-destructive/15 border border-destructive/60 text-destructive text-xs flex items-center justify-between shadow-[0_0_15px_rgba(255,51,102,0.2)]"
+              className="p-3.5 rounded bg-destructive/15 border border-destructive/60 text-destructive text-xs flex items-center justify-between shadow-[0_0_15px_rgba(255,51,102,0.2)]"
               role="alert"
             >
               <div className="flex items-center space-x-2.5">
@@ -201,11 +201,7 @@ export default function DashboardPage() {
                 setActiveTab('queue_map');
                 setActiveNav('command');
               }}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-t transition-all border-b-2 font-bold uppercase tracking-wider cursor-pointer ${
-                activeTab === 'queue_map'
-                  ? 'border-thermal-DEFAULT text-thermal-bright bg-surface shadow-[0_-2px_10px_rgba(255,107,0,0.15)]'
-                  : 'border-transparent text-subtle hover:text-foreground hover:bg-elevated/40'
-              }`}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-t transition-all border-b-2 font-bold uppercase tracking-wider cursor-pointer ${ activeTab === 'queue_map' ? 'border-thermal-DEFAULT text-thermal-bright bg-surface shadow-[0_-2px_10px_rgba(255,107,0,0.15)]' : 'border-transparent text-subtle hover:text-foreground hover:bg-elevated/40' }`}
             >
               <Flame className="w-3.5 h-3.5 text-thermal-DEFAULT" aria-hidden="true" />
               <span>Prioritized Queue & Tactical Map</span>
@@ -223,11 +219,7 @@ export default function DashboardPage() {
                 setActiveTab('alerts');
                 setActiveNav('alerts');
               }}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-t transition-all border-b-2 font-bold uppercase tracking-wider cursor-pointer ${
-                activeTab === 'alerts'
-                  ? 'border-destructive text-destructive bg-surface shadow-[0_-2px_10px_rgba(255,51,102,0.15)]'
-                  : 'border-transparent text-subtle hover:text-foreground hover:bg-elevated/40'
-              }`}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-t transition-all border-b-2 font-bold uppercase tracking-wider cursor-pointer ${ activeTab === 'alerts' ? 'border-destructive text-destructive bg-surface shadow-[0_-2px_10px_rgba(255,51,102,0.15)]' : 'border-transparent text-subtle hover:text-foreground hover:bg-elevated/40' }`}
             >
               <Bell className="w-3.5 h-3.5 text-destructive" aria-hidden="true" />
               <span>Operational Alerts</span>
@@ -245,13 +237,9 @@ export default function DashboardPage() {
                 setActiveTab('analytics');
                 setActiveNav('analytics');
               }}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-t transition-all border-b-2 font-bold uppercase tracking-wider cursor-pointer ${
-                activeTab === 'analytics'
-                  ? 'border-cyber-cyan text-cyber-cyan bg-surface shadow-[0_-2px_10px_rgba(0,212,255,0.15)]'
-                  : 'border-transparent text-subtle hover:text-foreground hover:bg-elevated/40'
-              }`}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-t transition-all border-b-2 font-bold uppercase tracking-wider cursor-pointer ${ activeTab === 'analytics' ? 'border-blue-400 text-blue-400 bg-surface shadow-[0_-2px_10px_rgba(0,212,255,0.15)]' : 'border-transparent text-subtle hover:text-foreground hover:bg-elevated/40' }`}
             >
-              <BarChart3 className="w-3.5 h-3.5 text-cyber-cyan" aria-hidden="true" />
+              <BarChart3 className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
               <span>Risk & Source Analytics</span>
             </button>
           </div>
@@ -262,11 +250,7 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 min-h-[580px] xl:min-h-[660px]">
                 {/* Collapsible Incident Feed (Desktop: 4 or 5 cols, or hidden when collapsed) */}
                 <div
-                  className={`min-h-[460px] flex flex-col order-2 lg:order-1 transition-all duration-300 ${
-                    isFeedCollapsed
-                      ? 'hidden'
-                      : 'lg:col-span-5 xl:col-span-4'
-                  }`}
+                  className={`min-h-[460px] flex flex-col order-2 lg:order-1 transition-all duration-300 ${ isFeedCollapsed ? 'hidden' : 'lg:col-span-5 xl:col-span-4' }`}
                 >
                   <IncidentFeed
                     hotspots={filteredHotspots}
@@ -284,9 +268,7 @@ export default function DashboardPage() {
                   id="map-container"
                   role="region"
                   aria-label="Tactical Geospatial Satellite Map"
-                  className={`rounded cyber-chamfer-xs bg-surface border border-cyber-border flex flex-col overflow-hidden shadow-2xl min-h-[480px] lg:min-h-[600px] xl:min-h-[660px] relative order-1 lg:order-2 transition-all duration-300 ${
-                    isFeedCollapsed ? 'lg:col-span-12' : 'lg:col-span-7 xl:col-span-8'
-                  }`}
+                  className={`rounded bg-surface border border-cyber-border flex flex-col overflow-hidden shadow-2xl min-h-[480px] lg:min-h-[600px] xl:min-h-[660px] relative order-1 lg:order-2 transition-all duration-300 ${ isFeedCollapsed ? 'lg:col-span-12' : 'lg:col-span-7 xl:col-span-8' }`}
                 >
                   {/* Tactical Map Header Bar */}
                   <div className="px-4 py-2 border-b border-cyber-border flex items-center justify-between bg-void/90 backdrop-blur-md z-10 font-mono">
@@ -307,12 +289,12 @@ export default function DashboardPage() {
                       >
                         {isFeedCollapsed ? (
                           <>
-                            <ChevronRight className="w-3 h-3 text-cyber-cyan" />
+                            <ChevronRight className="w-3 h-3 text-blue-400" />
                             <span>Show Feed</span>
                           </>
                         ) : (
                           <>
-                            <ChevronLeft className="w-3 h-3 text-cyber-cyan" />
+                            <ChevronLeft className="w-3 h-3 text-blue-400" />
                             <span>Maximize Map</span>
                           </>
                         )}
@@ -384,14 +366,14 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="lg:col-span-4 space-y-4">
-                <div className="p-4 rounded cyber-chamfer-xs bg-surface border border-cyber-border shadow-xl space-y-3">
+                <div className="p-4 rounded bg-surface border border-cyber-border shadow-xl space-y-3">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-foreground font-mono">
                     Intelligence Engine Architecture
                   </h3>
                   <p className="text-xs text-subtle leading-relaxed">
                     Thermal anomalies are normalized from near-real-time satellite passes, enriched with OSM critical infrastructure proximities and Open-Meteo fire weather indices, then evaluated by the composite ML risk engine.
                   </p>
-                  <div className="p-3 rounded bg-void font-mono text-[11px] text-cyber-cyan space-y-1 border border-cyber-border/60">
+                  <div className="p-3 rounded bg-void font-mono text-[11px] text-blue-400 space-y-1 border border-cyber-border/60">
                     <div>Algorithm: Random Forest + IsolationForest</div>
                     <div>Attribution: Feature Weight Scoring</div>
                     <div>Risk Output: Calibrated 0–100 Matrix</div>
@@ -423,7 +405,7 @@ export default function DashboardPage() {
         {/* Settings / Config Modal */}
         {settingsModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-            <div className="w-full max-w-md bg-surface border border-cyber-border rounded cyber-chamfer p-5 shadow-2xl font-mono space-y-4">
+            <div className="w-full max-w-md bg-surface border border-cyber-border rounded p-5 shadow-2xl font-mono space-y-4">
               <div className="flex items-center justify-between border-b border-cyber-border pb-2">
                 <div className="flex items-center space-x-2">
                   <Settings className="w-4 h-4 text-cyber-accent" />
@@ -443,7 +425,7 @@ export default function DashboardPage() {
               <div className="space-y-3 text-xs text-subtle">
                 <div>
                   <label className="text-foreground block mb-1 font-bold">TELEMETRY POLLING INTERVAL</label>
-                  <div className="p-2 rounded bg-void border border-cyber-border text-cyber-cyan">
+                  <div className="p-2 rounded bg-void border border-cyber-border text-blue-400">
                     30 seconds (Live NASA FIRMS / VIIRS NRT Sync)
                   </div>
                 </div>

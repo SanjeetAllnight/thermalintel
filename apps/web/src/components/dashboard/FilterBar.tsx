@@ -41,12 +41,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   };
 
   return (
-    <div className="bg-surface/90 border border-border-color rounded p-3 sm:p-3.5 shadow-xl space-y-2.5 cyber-chamfer-xs">
+    <div className="bg-surface/90 rounded p-3 sm:p-3.5 shadow-xl space-y-2.5">
       {/* Top Filter Row: Search & Quick Chips */}
       <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center justify-between">
         {/* Search Input with Terminal '>' prompt styling */}
         <div className="relative flex-1 min-w-[220px]">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-cyber-cyan font-mono font-bold text-xs select-none">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 font-mono font-bold text-xs select-none">
             &gt;
           </span>
           <input
@@ -55,7 +55,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             placeholder="Search incident ID, nearest place, cluster, or county..."
             value={filters.searchQuery}
             onChange={(e) => update({ searchQuery: e.target.value })}
-            className="w-full pl-7 pr-8 py-1.5 rounded bg-void/90 border border-border-color text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyber-cyan focus:ring-1 focus:ring-cyber-cyan font-mono transition-all cyber-chamfer-xs"
+            className="w-full pl-7 pr-8 py-1.5 rounded bg-void/90 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 font-mono transition-all"
           />
           {filters.searchQuery && (
             <button
@@ -87,11 +87,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 id={`filter-severity-${level}`}
                 type="button"
                 onClick={() => update({ riskLevel: level })}
-                className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold tracking-wider transition-all whitespace-nowrap cyber-chamfer-xs cursor-pointer ${
-                  isSelected
-                    ? activeClass
-                    : 'bg-void text-slate-400 hover:text-slate-200 border border-border-color'
-                }`}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${ isSelected ? activeClass : 'bg-void text-slate-400 hover:text-slate-200 ' }`}
               >
                 {level}
               </button>
@@ -101,11 +97,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       </div>
 
       {/* Bottom Filter Row: Source Type, Min FRP, Anomaly Toggle, and Clear Button */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-border-color/70 text-xs font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-subtle/70 text-xs font-mono">
         <div className="flex flex-wrap items-center gap-2">
           {/* Classification / Source Selector */}
-          <div className="flex items-center space-x-1.5 bg-void border border-border-color rounded px-2 py-0.5 cyber-chamfer-xs">
-            <Filter className="w-3 h-3 text-cyber-cyan" />
+          <div className="flex items-center space-x-1.5 bg-surface rounded px-2 py-0.5">
+            <Filter className="w-3 h-3 text-blue-400" />
             <span className="text-[10px] text-slate-400 uppercase">Source:</span>
             <select
               id="filter-source-select"
@@ -125,7 +121,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           </div>
 
           {/* Min FRP Threshold */}
-          <div className="flex items-center space-x-1.5 bg-void border border-border-color rounded px-2 py-0.5 cyber-chamfer-xs">
+          <div className="flex items-center space-x-1.5 bg-surface rounded px-2 py-0.5">
             <SlidersHorizontal className="w-3 h-3 text-thermal-orange" />
             <span className="text-[10px] text-slate-400 uppercase">Min FRP:</span>
             <select
@@ -142,7 +138,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           </div>
 
           {/* Anomaly Only Toggle */}
-          <label className="flex items-center space-x-1.5 cursor-pointer bg-void border border-border-color rounded px-2.5 py-0.5 hover:border-border-color/80 transition-all select-none cyber-chamfer-xs">
+          <label className="flex items-center space-x-1.5 cursor-pointer bg-surface rounded px-2.5 py-0.5 hover:border-border-color/80 transition-all select-none">
             <input
               id="filter-anomaly-only"
               type="checkbox"
@@ -169,7 +165,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               id="btn-clear-filters"
               type="button"
               onClick={onReset}
-              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-surface hover:bg-elevated text-slate-300 hover:text-white border border-border-color text-[10px] font-medium transition-all cyber-chamfer-xs cursor-pointer"
+              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-surface hover:bg-elevated text-slate-300 hover:text-white text-[10px] font-medium transition-all cursor-pointer"
             >
               <X className="w-3 h-3" />
               <span>Clear</span>

@@ -39,11 +39,7 @@ export const AlertsFeed: React.FC<AlertsFeedProps> = ({
           return (
             <div
               key={alert.id}
-              className={`p-4 rounded-xl border transition-all ${
-                isAck
-                  ? 'bg-slate-900/40 border-slate-800 opacity-60'
-                  : 'bg-slate-900 border-slate-800 shadow-md hover:border-slate-700'
-              } ${meta.borderLeft} border-l-4`}
+              className={`p-4 rounded-xl border transition-all ${ isAck ? 'bg-slate-900/40 border-slate-800 opacity-60' : 'bg-slate-900 border-slate-800 shadow-md hover:border-slate-700' } ${meta.borderLeft} border-l-4`}
             >
               {/* Alert Header */}
               <div className="flex items-start justify-between gap-3">
@@ -70,11 +66,7 @@ export const AlertsFeed: React.FC<AlertsFeedProps> = ({
                 <button
                   type="button"
                   onClick={(e) => toggleAcknowledge(alert.id, e)}
-                  className={`text-[11px] font-medium px-2.5 py-1 rounded-md border flex items-center gap-1 transition-all ${
-                    isAck
-                      ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
-                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
-                  }`}
+                  className={`text-[11px] font-medium px-2.5 py-1 rounded-md border flex items-center gap-1 transition-all ${ isAck ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white' }`}
                   title="Acknowledge Alert"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
